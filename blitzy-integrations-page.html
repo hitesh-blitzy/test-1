@@ -18,6 +18,19 @@
     • GITLAB_SELF_HOSTED adapter  — template for new self-hosted adapters.
     • TreeNode + MAX_GITLAB_DEPTH=20  — reused read-only (no backend tree-fetch changes).
     • Project Source/Destination pickers  — read-side filtering by granted folders.
+
+  DEFENSE IN DEPTH — SERVER-SIDE AUTHORIZATION (REQUIRED, F-007 two-layer enforcement):
+    The role gating in this prototype (Super Admin sees connect/manage/share/disconnect/revoke
+    controls; Team Member is read-only) is a UI-LAYER convenience ONLY and is NOT a security
+    boundary. The downstream production APIs MUST INDEPENDENTLY RE-AUTHORIZE every privileged
+    mutation server-side and REJECT any non-administrator caller — regardless of UI gating —
+    for ALL of: connect / reconnect, manage, share folder access (IntegrationTeamShareRequest /
+    bulkUpdateIntegrationTeamAccess), refresh, disconnect, and revoke access. A hidden or
+    disabled control in the client must never be the only thing standing between a non-admin
+    and a privileged operation; the server is the authoritative enforcement point (HTTP 403 on
+    failed authorization). Folder-grant mutations additionally validate the caller's admin
+    scope on the target connection before persisting any {connectionId, folderStableId,
+    folderPathSnapshot, teamId} tuple.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -224,15 +237,20 @@ var DATA={
 };
 var PRESETS={zero:{},mixed:{gh:'connected',ghe:'failed',ado:'connected'},connecting:{gh:'connecting',ghe:'connecting',ado:'connecting'},ideal:{gh:'connected',ghe:'connected',gl:'connected',gls:'connected',ado:'connected',bb:'connected'}};
 var TEAMS=['Galatea UI','Infra','QA Automation','Back-end','Frontend Guild','Security','Payments'];
-/* Per-provider top-level folder forest. The root (parent:null) is the account/org scope — the
-   conceptual ancestor — and its children are the top-level folders. A grant on an ancestor inherits
-   DOWN to descendants (resolved at READ TIME, never stored). Top-level only: no repo/branch levels. */
+/* Per-provider TOP-LEVEL folder forest (F-009/F-010). Two top-level tiers ONLY, matching the
+   secondary prototype's workspace>project model: the WORKSPACE/account-org root (parent:null) and
+   the top-level project folders directly inside it (parent:'ws'). BOTH tiers are legitimate grant
+   targets — there are deliberately NO deeper descendants (no repo/branch/sub-folder levels; those
+   are out of scope). A grant on the workspace inherits DOWN to every project; a grant on a project
+   stays on that project. Inheritance is resolved at READ TIME from the grant tuples and is NEVER
+   stored as a row. This is what keeps the right-pane direct-vs-inherited display and redundant-grant
+   blocking live: selecting a project surfaces grants inherited "from blitzy-ai". */
 var FOLDERS={
- github:[{id:'platform',n:'platform',parent:null},{id:'pl-svc',n:'services',parent:'platform'},{id:'design',n:'design-system',parent:null},{id:'infra',n:'infra',parent:null}],
- gitlab:[{id:'platform',n:'platform',parent:null},{id:'pl-svc',n:'services',parent:'platform'},{id:'design',n:'design',parent:null},{id:'data',n:'data-eng',parent:null}],
- azure:[{id:'platform',n:'Platform',parent:null},{id:'pl-svc',n:'Services',parent:'platform'},{id:'design',n:'Design',parent:null},{id:'mobile',n:'Mobile',parent:null}],
- bitbucket:[{id:'platform',n:'platform',parent:null},{id:'pl-svc',n:'services',parent:'platform'},{id:'design',n:'design',parent:null},{id:'qa',n:'qa-suite',parent:null}],
- figma:[{id:'platform',n:'Product',parent:null},{id:'pl-svc',n:'Mobile App',parent:'platform'},{id:'design',n:'Brand',parent:null}]
+ github:[{id:'ws',n:'blitzy-ai',parent:null},{id:'platform',n:'platform',parent:'ws'},{id:'design',n:'design-system',parent:'ws'},{id:'infra',n:'infra',parent:'ws'}],
+ gitlab:[{id:'ws',n:'blitzy-ai',parent:null},{id:'platform',n:'platform',parent:'ws'},{id:'design',n:'design',parent:'ws'},{id:'data',n:'data-eng',parent:'ws'}],
+ azure:[{id:'ws',n:'blitzy-ai',parent:null},{id:'platform',n:'Platform',parent:'ws'},{id:'design',n:'Design',parent:'ws'},{id:'mobile',n:'Mobile',parent:'ws'}],
+ bitbucket:[{id:'ws',n:'blitzy-ai',parent:null},{id:'platform',n:'platform',parent:'ws'},{id:'design',n:'design',parent:'ws'},{id:'qa',n:'qa-suite',parent:'ws'}],
+ figma:[{id:'ws',n:'blitzy-ai',parent:null},{id:'platform',n:'Product',parent:'ws'},{id:'design',n:'Brand',parent:'ws'}]
 };
 /* Category metadata for the data-driven rail: label + Tabler icon per DATA category key.
    Adding a category = add a DATA key + a CATS entry (a data change, not a layout change). */
@@ -254,6 +272,10 @@ function q(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
 function badge(s){if(s==='connected')return '<span class="badge ok"><i class="ti ti-circle-check-filled" aria-hidden="true"></i>Connected</span>';
  if(s==='failed')return '<span class="badge err"><i class="ti ti-alert-circle" aria-hidden="true"></i>Connection failed</span>';
  if(s==='connecting')return '<span class="badge run"><span class="spin" aria-hidden="true"></span>Connecting</span>';return '';}
+/* Role-based action dispatch (F-007). NOTE: this client-side gating (admins get
+   Connect/Manage/Reconnect + kebab; members are read-only status labels) is the UI half of a
+   TWO-LAYER model. It is NOT a security boundary — production APIs MUST independently reject
+   non-admin callers server-side (see the DEFENSE IN DEPTH note in the file header). */
 function actions(sub){var s=st(sub.id);
  if(sub.soon)return '<div class="actions"><span class="badge soon">Coming soon</span></div>';
  if(role==='member'){if(s==='connected')return '<div class="actions"><span class="badge ok"><i class="ti ti-circle-check-filled" aria-hidden="true"></i>Connected</span></div>';
@@ -295,18 +317,33 @@ function oauthModal(sub){var d=document.getElementById('dialog');
   '<div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn primary" id="dyes"><i class="ti ti-external-link" aria-hidden="true"></i>Authorize on '+esc(sub.connect.provider)+'</button></div>';
  show();document.getElementById('dno').onclick=closeD;
  document.getElementById('dyes').onclick=function(){closeD();doConnect(sub.id);};}
-function formModal(sub){var f=FORMS[sub.connect.form],vals={};var d=document.getElementById('dialog');
+/* ---- self-hosted server reachability (edge case, F-006 / Group 3) ----
+   A SYNTACTICALLY valid URL can still be UNREACHABLE. This prototype SIMULATES the
+   server-reachability probe deterministically — production replaces this with a real
+   network/SSO probe at the connect boundary. A host using an RFC 2606 / RFC 6761 reserved
+   TLD (.invalid/.test/.example/.localhost), a bare host with no dot, or a host explicitly
+   marked "unreachable" models a server the backend cannot contact. On failure the dialog
+   stays OPEN and an inline, escaped field error is shown via role="alert"; NO transition
+   to connecting/connected occurs (guards against a valid-but-dead endpoint). */
+function reachable(v){var h;try{h=new URL((v||'').trim()).hostname.toLowerCase();}catch(e){return false;}
+ if(!h||h.indexOf('.')<0)return false;
+ if(/\.(invalid|test|example|localhost)$/.test(h))return false;
+ if(h.indexOf('unreachable')>=0)return false;
+ return true;}
+var SYNTAX_URL_ERR='Enter a valid URL that starts with http:// or https://';
+var UNREACH_URL_ERR="Couldn't reach this server. Check the URL and that the server is reachable.";
+function formModal(sub){var f=FORMS[sub.connect.form],vals={},unreach=null;var d=document.getElementById('dialog');
  function validUrl(v){try{var u=new URL((v||'').trim());return u.protocol==='http:'||u.protocol==='https:';}catch(e){return false;}}
  function badUrl(x){return x.url&&(vals[x.l]||'').trim()&&!validUrl(vals[x.l]);}
  function valid(){return f.fields.every(function(x){var v=(vals[x.l]||'').trim();if(x.req&&!v)return false;if(x.url&&v&&!validUrl(v))return false;return true;});}
  function paint(){
   d.innerHTML='<div class="dh"><i class="ti '+esc(f.mark)+'" aria-hidden="true"></i><h3 id="dlgTitle">'+esc(f.title)+'</h3></div>'+
    (f.top?'<div class="tophelp">'+esc(f.top)+(f.learn?' &nbsp;<a href="'+esc(f.learn)+'" target="_blank" rel="noopener noreferrer">Learn how &#8599;</a>':'')+'</div>':'')+
-   f.fields.map(function(x,i){return '<div class="fld'+(badUrl(x)?' invalid':'')+'"><label for="fld'+i+'">'+esc(x.l)+'</label><input id="fld'+i+'" data-i="'+i+'" type="'+(x.secret?'password':'text')+'" placeholder="'+esc(x.ph)+'" value="'+esc(vals[x.l])+'"'+(x.url?' aria-describedby="ferr'+i+'"':'')+(badUrl(x)?' aria-invalid="true"':'')+'/><div class="help">'+esc(x.h)+'</div>'+(x.url?'<div class="ferr" id="ferr'+i+'">Enter a valid URL that starts with http:// or https://</div>':'')+'</div>';}).join('')+
+   f.fields.map(function(x,i){var syntaxBad=badUrl(x),reachBad=(unreach===x.l),bad=syntaxBad||reachBad,fmsg=reachBad?UNREACH_URL_ERR:SYNTAX_URL_ERR;return '<div class="fld'+(bad?' invalid':'')+'"><label for="fld'+i+'">'+esc(x.l)+'</label><input id="fld'+i+'" data-i="'+i+'" type="'+(x.secret?'password':'text')+'" placeholder="'+esc(x.ph)+'" value="'+esc(vals[x.l])+'"'+(x.url?' aria-describedby="ferr'+i+'"':'')+(bad?' aria-invalid="true"':'')+'/><div class="help">'+esc(x.h)+'</div>'+(x.url?'<div class="ferr" id="ferr'+i+'" role="alert">'+esc(fmsg)+'</div>':'')+'</div>';}).join('')+
    '<div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn primary" id="dyes"'+(valid()?'':' disabled')+'>Connect</button></div>';
-  d.querySelectorAll('input[data-i]').forEach(function(inp){inp.oninput=function(){var x=f.fields[this.getAttribute('data-i')];vals[x.l]=this.value;if(x.url){this.closest('.fld').classList.toggle('invalid',badUrl(x));this.setAttribute('aria-invalid',badUrl(x)?'true':'false');}document.getElementById('dyes').disabled=!valid();};});
+  d.querySelectorAll('input[data-i]').forEach(function(inp){inp.oninput=function(){var x=f.fields[this.getAttribute('data-i')];vals[x.l]=this.value;if(x.url){if(unreach===x.l)unreach=null;var sb=badUrl(x);this.closest('.fld').classList.toggle('invalid',sb);this.setAttribute('aria-invalid',sb?'true':'false');var fe=this.closest('.fld').querySelector('.ferr');if(fe)fe.textContent=SYNTAX_URL_ERR;}document.getElementById('dyes').disabled=!valid();};});
   document.getElementById('dno').onclick=closeD;
-  document.getElementById('dyes').onclick=function(){if(!valid())return;closeD();doConnect(sub.id);};
+  document.getElementById('dyes').onclick=function(){if(!valid())return;var bf=null;f.fields.forEach(function(x){if(!bf&&x.url&&(vals[x.l]||'').trim()&&!reachable(vals[x.l]))bf=x;});if(bf){unreach=bf.l;paint();var bi=d.querySelector('.fld.invalid input');if(bi)bi.focus();log(find(sub.id).name+': server unreachable — check the URL');return;}closeD();doConnect(sub.id);};
  }
  paint();show();}
 function doConnect(id){cstate[id]='connecting';render();var nm=find(id).name;log('Connecting '+nm+'…');
@@ -339,16 +376,32 @@ function onMenu(a,sub,anchor){
    'Revoke access',function(){clearTimer(sub.id);cstate[sub.id]='none';render();log(sub.name+' access revoked');},anchor);}
 
 /* ---- folder sharing (top-level folders, push, inheritance) ---- */
+/* Folder-first sharing modal (F-009/F-010). Grants are stored per connection as an ARRAY of explicit
+   stable-ID tuples {connectionId, folderStableId, folderPathSnapshot, teamId}. Direct and inherited
+   views are derived at READ TIME from those tuples — no inherited row is ever persisted. Inheritance
+   is anchored on the IMMUTABLE folderStableId, so a folder rename/move is safe (only a hard delete
+   breaks a grant). folderPathSnapshot is a human-readable audit trail captured at grant time. */
 function shareModal(sub,anchor){var prov=findProv(sub.id),pk=prov?prov.key:'github',folders=FOLDERS[pk]||FOLDERS.github;
- var key=sub.id;grants[key]=grants[key]||{platform:['Frontend Guild'],design:[]};var sel='platform',qy='';
+ var key=sub.id;var sel='platform',qy='';
  var d=document.getElementById('dialog');
  function byId(id){for(var i=0;i<folders.length;i++){if(folders[i].id===id)return folders[i];}return null;}
- function ancestorsOf(id){var out=[],cur=byId(id);while(cur&&cur.parent){var p=byId(cur.parent);if(!p)break;out.push(p);cur=p;}return out;}
- function inheritedFor(id){var g=grants[key],direct=g[id]||[],seen={},res=[];ancestorsOf(id).forEach(function(a){(g[a.id]||[]).forEach(function(t){if(direct.indexOf(t)<0&&!seen[t]){seen[t]=true;res.push({team:t,from:a.n});}});});return res;}
+ function ancestorsOf(id){var out=[],cur=byId(id),guard=0;while(cur&&cur.parent&&guard++<50){var p=byId(cur.parent);if(!p)break;out.push(p);cur=p;}return out;}
+ function pathOf(id){var parts=[],cur=byId(id),guard=0;while(cur&&guard++<50){parts.unshift(cur.n);cur=cur.parent?byId(cur.parent):null;}return parts.join('/');}
+ /* Read-time derivations over the tuple store. */
+ function directTeams(id){return grants[key].filter(function(t){return t.folderStableId===id;}).map(function(t){return t.teamId;});}
+ function inheritedFor(id){var direct=directTeams(id),seen={},res=[];ancestorsOf(id).forEach(function(a){directTeams(a.id).forEach(function(t){if(direct.indexOf(t)<0&&!seen[t]){seen[t]=true;res.push({team:t,from:a.n});}});});return res;}
+ function addGrant(fid,team){grants[key].push({connectionId:key,folderStableId:fid,folderPathSnapshot:pathOf(fid),teamId:team});}
+ function removeGrant(fid,team){grants[key]=grants[key].filter(function(t){return !(t.folderStableId===fid&&t.teamId===team);});}
+ /* Seed once, as explicit tuples. A WORKSPACE-root grant (Frontend Guild on blitzy-ai) inherits down
+    to every project; a direct project grant (Galatea UI on platform) demonstrates the direct-vs-
+    inherited split and the redundant-grant block when Frontend Guild is searched under platform. */
+ if(!grants[key]){grants[key]=[
+   {connectionId:key,folderStableId:'ws',folderPathSnapshot:pathOf('ws'),teamId:'Frontend Guild'},
+   {connectionId:key,folderStableId:'platform',folderPathSnapshot:pathOf('platform'),teamId:'Galatea UI'}
+ ];}
  function paint(){
-  var g=grants[key];
-  var fl=folders.map(function(f){return '<button type="button" class="frow'+(f.parent?' child':'')+(f.id===sel?' sel':'')+'" data-f="'+esc(f.id)+'" aria-current="'+(f.id===sel?'true':'false')+'"><i class="ti ti-folder" aria-hidden="true"></i><span class="fn">'+esc(f.n)+'</span><span class="c">'+(g[f.id]||[]).length+'</span></button>';}).join('');
-  var selF=byId(sel)||{n:sel};var cur=g[sel]||[];var inh=inheritedFor(sel);var inhSet={};inh.forEach(function(x){inhSet[x.team]=x.from;});
+  var fl=folders.map(function(f){return '<button type="button" class="frow'+(f.parent?' child':'')+(f.id===sel?' sel':'')+'" data-f="'+esc(f.id)+'" aria-current="'+(f.id===sel?'true':'false')+'"><i class="ti ti-folder" aria-hidden="true"></i><span class="fn">'+esc(f.n)+'</span><span class="c">'+directTeams(f.id).length+'</span></button>';}).join('');
+  var selF=byId(sel)||{n:sel};var cur=directTeams(sel);var inh=inheritedFor(sel);var inhSet={};inh.forEach(function(x){inhSet[x.team]=x.from;});
   var dHtml=cur.length?cur.map(function(t){return '<div class="acc"><span><i class="ti ti-users uic" aria-hidden="true"></i>'+esc(t)+'</span><button type="button" class="rm" data-rm="'+esc(t)+'">Remove</button></div>';}).join(''):'<div class="muted">No teams added directly.</div>';
   var iHtml=inh.length?'<div class="lbl">Inherited</div>'+inh.map(function(x){return '<div class="acc inh"><span><i class="ti ti-lock lock" aria-hidden="true"></i>'+esc(x.team)+'<span class="src">from '+esc(x.from)+'</span></span></div>';}).join(''):'';
   var ql=qy.toLowerCase();
@@ -362,8 +415,8 @@ function shareModal(sub,anchor){var prov=findProv(sub.id),pk=prov?prov.key:'gith
    '<div class="lbl">Add a team</div><input class="q" id="q" placeholder="Search teams" aria-label="Search teams to add" value="'+esc(qy)+'"/>'+redHtml+'<div id="res">'+resHtml+'</div></div></div>'+
    '<div class="drow"><button class="btn primary" id="dno">Done</button></div>';
   d.querySelectorAll('[data-f]').forEach(function(e){e.onclick=function(){sel=this.getAttribute('data-f');qy='';paint();var a=d.querySelector('.frow.sel');if(a)a.focus();};});
-  d.querySelectorAll('[data-rm]').forEach(function(e){e.onclick=function(){var t=this.getAttribute('data-rm');g[sel]=(g[sel]||[]).filter(function(z){return z!==t;});paint();var n=document.getElementById('q');if(n)n.focus();};});
-  d.querySelectorAll('[data-add]').forEach(function(e){e.onclick=function(){var t=this.getAttribute('data-add');(g[sel]=g[sel]||[]).push(t);qy='';paint();var n=document.getElementById('q');if(n)n.focus();};});
+  d.querySelectorAll('[data-rm]').forEach(function(e){e.onclick=function(){removeGrant(sel,this.getAttribute('data-rm'));paint();var n=document.getElementById('q');if(n)n.focus();};});
+  d.querySelectorAll('[data-add]').forEach(function(e){e.onclick=function(){addGrant(sel,this.getAttribute('data-add'));qy='';paint();var n=document.getElementById('q');if(n)n.focus();};});
   var qi=document.getElementById('q');if(qi)qi.oninput=function(){qy=this.value;paint();var n=document.getElementById('q');if(n){n.focus();n.setSelectionRange(qy.length,qy.length);}};
   document.getElementById('dno').onclick=function(){closeD();log('Updated folder access for '+sub.name);};
  }

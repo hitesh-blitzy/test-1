@@ -22,7 +22,7 @@ font-family:"Inter",system-ui,sans-serif;}
 *{box-sizing:border-box}
 body{margin:0;background:var(--neutral50);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:24px;color:var(--ink)}
 .md{width:100%;max-width:480px;background:#fff;border-radius:var(--r);padding:22px;box-shadow:var(--shadow)}
-.tnode{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer;border-radius:var(--r-sm);border:1px solid transparent;margin:1px 0}
+.tnode{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer;border-radius:var(--r-sm);border:1px solid transparent;margin:1px 0;width:100%;text-align:left;background:none;font-family:inherit}
 .tnode:hover{background:var(--neutral50)}
 .tnode.sel{background:var(--brand-tint);border-color:var(--brand-soft);color:var(--brand);font-weight:600}
 .pbtn{border:none;background:var(--brand);color:#fff;border-radius:var(--r-sm);padding:8px 18px;font-size:14px;cursor:pointer}
@@ -36,6 +36,10 @@ body{margin:0;background:var(--neutral50);min-height:100vh;display:flex;align-it
 .tlrow:hover{background:var(--neutral50)}
 .tlrow.locked{cursor:not-allowed}
 .tlrow.locked:hover{background:transparent}
+.tlrow{display:flex;width:100%;text-align:left;background:none;border:none;font-family:inherit;color:inherit;cursor:pointer}
+.iconbtn{background:none;border:none;padding:0;margin:0;cursor:pointer;display:inline-flex;align-items:center;font-family:inherit;color:inherit;line-height:0}
+.iconbtn:hover{opacity:.7}
+.tnode:focus-visible,.tlrow:focus-visible,.iconbtn:focus-visible,.pbtn:focus-visible,.obtn:focus-visible,.sbtn:focus-visible,#btn-add:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -55,15 +59,15 @@ body{margin:0;background:var(--neutral50);min-height:100vh;display:flex;align-it
     <div id="summary" style="display:none;border-radius:var(--r-sm);padding:10px 12px;margin-top:12px;font-size:12px"></div>
 
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-      <button class="obtn" onclick="resetAll()">Cancel</button>
-      <button class="pbtn" onclick="done()">Done</button>
+      <button type="button" class="obtn" id="btn-cancel-list">Cancel</button>
+      <button type="button" class="pbtn" id="btn-done">Done</button>
     </div>
   </div>
 
   <!-- ============ PICKER VIEW: choose a top-level folder, then push access to teams ============ -->
   <div id="view-picker" style="display:none">
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px">
-      <i class="ti ti-arrow-left" onclick="closePicker()" title="Back" aria-label="Back to folder access" style="font-size:18px;color:var(--sec);cursor:pointer"></i>
+      <button type="button" class="iconbtn backbtn" id="btn-back" title="Back" aria-label="Back to folder access" style="font-size:18px;color:var(--sec)"><i class="ti ti-arrow-left" aria-hidden="true"></i></button>
       <span style="font-size:16px;font-weight:600;color:var(--ink);flex:1">Add folder access</span>
     </div>
     <div style="font-size:13px;color:var(--sec);margin-bottom:14px">Pick a top-level folder, then choose which teams can access it. Everything inside inherits it.</div>
@@ -72,23 +76,23 @@ body{margin:0;background:var(--neutral50);min-height:100vh;display:flex;align-it
 
     <div style="font-size:12px;color:var(--sec);margin-bottom:6px">Folder</div>
     <!-- Top-level folders ONLY: workspace and the project inside it. Repo/branch levels are out of scope. -->
-    <div style="border:1px solid var(--border);border-radius:var(--r-sm);padding:6px;margin-bottom:16px">
-      <div class="tnode" style="padding:6px 8px" onclick="selFolder('ws')"><i class="ti ti-building" style="font-size:16px" aria-hidden="true"></i>blitzy-ai <span style="color:var(--ter);font-weight:400;font-size:11px">workspace</span></div>
-      <div class="tnode" style="padding:6px 8px 6px 24px" onclick="selFolder('acsp')"><i class="ti ti-folder" style="font-size:16px" aria-hidden="true"></i>acs-platform <span style="color:var(--ter);font-weight:400;font-size:11px">project</span></div>
+    <div id="folder-list" style="border:1px solid var(--border);border-radius:var(--r-sm);padding:6px;margin-bottom:16px">
+      <button type="button" class="tnode" data-folder="ws" style="padding:6px 8px"><i class="ti ti-building" style="font-size:16px" aria-hidden="true"></i>blitzy-ai <span style="color:var(--ter);font-weight:400;font-size:11px">workspace</span></button>
+      <button type="button" class="tnode" data-folder="acsp" style="padding:6px 8px 6px 24px"><i class="ti ti-folder" style="font-size:16px" aria-hidden="true"></i>acs-platform <span style="color:var(--ter);font-weight:400;font-size:11px">project</span></button>
     </div>
 
     <div style="display:flex;align-items:center;margin-bottom:6px"><span style="font-size:12px;color:var(--sec);flex:1">Share with</span><span id="sel-count" style="font-size:11px;color:var(--ter)"></span></div>
     <div id="team-chips" style="margin-bottom:8px"></div>
-    <input class="srch" id="team-search" placeholder="Search teams…" oninput="renderTeamList(this.value)" aria-label="Search teams">
+    <input class="srch" id="team-search" placeholder="Search teams…" aria-label="Search teams">
     <div id="teamlist" style="border:1px solid var(--border);border-radius:var(--r-sm);margin-top:8px;max-height:168px;overflow:auto;padding:4px;margin-bottom:8px"></div>
     <!-- Inline redundant-grant notice (read-time inheritance block). Rendered in --err-tx; never a browser alert. -->
     <div id="block-msg" style="display:none;background:var(--err-bg);color:var(--err-tx);border-radius:var(--r-sm);padding:8px 10px;font-size:12px;margin-bottom:14px"></div>
 
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-      <button class="obtn" onclick="closePicker()">Cancel</button>
+      <button type="button" class="obtn" id="btn-cancel-picker">Cancel</button>
       <span style="flex:1"></span>
-      <button class="sbtn" id="btn-another" onclick="addGrant(true)" disabled>Save &amp; add another</button>
-      <button class="pbtn" id="btn-confirm" onclick="addGrant(false)" disabled>Add</button>
+      <button type="button" class="sbtn" id="btn-another" disabled>Save &amp; add another</button>
+      <button type="button" class="pbtn" id="btn-confirm" disabled>Add</button>
     </div>
   </div>
 </div>
@@ -121,7 +125,13 @@ var S={grants:[
 var D={folder:null,teams:new Set()};
 var blockMsg='';   /* inline redundant-grant message (rendered with --err-tx) */
 
-function avatar(t,sz){var m=TM[t];return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:var(--brand);color:#fff;font-size:'+(sz<24?9:11)+'px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+m.init+'</div>';}
+/* HTML-escape every untrusted leaf value at the render boundary (XSS-safe). Mirrors the primary
+   file's esc(). Team/folder/parent names, paths, initials and every attribute value pass through
+   esc() before reaching innerHTML; values rendered via textContent (e.g. the inline block message)
+   are already safe and are intentionally NOT double-escaped. */
+var ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ESC_MAP[c];});}
+function avatar(t,sz){var m=TM[t];return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:var(--brand);color:#fff;font-size:'+(sz<24?9:11)+'px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+esc(m.init)+'</div>';}
 
 /* ===== Read-time inheritance helpers ===== */
 function parentOf(fid){return FM[fid]?FM[fid].parent:null;}
@@ -150,16 +160,16 @@ function renderGrants(){
   var direct=directTeams(fid);
   var inh=inheritedTeams(fid).filter(function(x){return direct.indexOf(x.team)<0;}); /* don't double-show a team that is also direct */
   h+='<div style="background:#fff;border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:7px">';
-  h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sec);margin-bottom:6px"><i class="ti '+f.icon+'" style="font-size:14px" aria-hidden="true"></i><span style="color:var(--ink);font-weight:600">'+f.path+'</span></div>';
+  h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sec);margin-bottom:6px"><i class="ti '+f.icon+'" style="font-size:14px" aria-hidden="true"></i><span style="color:var(--ink);font-weight:600">'+esc(f.path)+'</span></div>';
   /* DIRECT grants — removable */
   direct.forEach(function(t){
-   h+='<div style="display:flex;align-items:center;gap:9px;padding:5px 2px">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+TM[t].name+'</span>'+
-      '<i class="ti ti-x" onclick="removeGrant(\''+t+'\',\''+fid+'\')" title="Remove" aria-label="Remove '+TM[t].name+' from '+f.label+'" style="font-size:15px;color:var(--ter);cursor:pointer"></i></div>';
+   h+='<div style="display:flex;align-items:center;gap:9px;padding:5px 2px">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[t].name)+'</span>'+
+      '<button type="button" class="iconbtn" data-act="remove" data-team="'+esc(t)+'" data-folder="'+esc(fid)+'" title="Remove" aria-label="Remove '+esc(TM[t].name)+' from '+esc(f.label)+'" style="font-size:15px;color:var(--ter)"><i class="ti ti-x" aria-hidden="true"></i></button></div>';
   });
   /* INHERITED grants — read-only, locked, with provenance */
   inh.forEach(function(x){
-   h+='<div style="display:flex;align-items:center;gap:9px;padding:5px 2px">'+avatar(x.team,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+TM[x.team].name+'</span>'+
-      '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ter)" title="Inherited from '+FM[x.source].label+'"><i class="ti ti-lock" style="font-size:13px" aria-hidden="true"></i>from '+FM[x.source].label+'</span></div>';
+   h+='<div style="display:flex;align-items:center;gap:9px;padding:5px 2px">'+avatar(x.team,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[x.team].name)+'</span>'+
+      '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ter)" title="Inherited from '+esc(FM[x.source].label)+'"><i class="ti ti-lock" style="font-size:13px" aria-hidden="true"></i>from '+esc(FM[x.source].label)+'</span></div>';
   });
   h+='</div>';
  });
@@ -204,7 +214,7 @@ function renderChips(){
  var c=document.getElementById('team-chips');
  document.getElementById('sel-count').textContent=D.teams.size?D.teams.size+' selected':'';
  if(!D.teams.size){c.innerHTML='<span style="font-size:12px;color:var(--ter)">No teams selected yet</span>';return;}
- c.innerHTML=Array.from(D.teams).map(function(t){return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--neutral50);border-radius:var(--r-sm);padding:3px 7px;font-size:12px;color:var(--sec);margin:0 5px 5px 0">'+avatar(t,16)+TM[t].name+' <i class="ti ti-x" onclick="toggleTeam(\''+t+'\')" title="Deselect" aria-label="Deselect '+TM[t].name+'" style="font-size:12px;color:var(--ter);cursor:pointer"></i></span>';}).join('');
+ c.innerHTML=Array.from(D.teams).map(function(t){return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--neutral50);border-radius:var(--r-sm);padding:3px 7px;font-size:12px;color:var(--sec);margin:0 5px 5px 0">'+avatar(t,16)+esc(TM[t].name)+' <button type="button" class="iconbtn" data-act="toggle" data-team="'+esc(t)+'" title="Deselect" aria-label="Deselect '+esc(TM[t].name)+'" style="font-size:12px;color:var(--ter)"><i class="ti ti-x" aria-hidden="true"></i></button></span>';}).join('');
 }
 
 function renderTeamList(qstr){
@@ -217,11 +227,11 @@ function renderTeamList(qstr){
   if(directTeams(D.folder).indexOf(t)>=0)return;            /* already a direct grant on this folder -> exclude */
   var src=inheritedSource(t,D.folder);
   if(src){                                                  /* inherits from an ancestor -> locked, read-only; click explains why */
-   rows+='<div class="tlrow locked" onclick="blockInherited(\''+t+'\')" title="Inherits from '+FM[src].label+'" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r-sm);opacity:.65">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+TM[t].name+'</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ter)"><i class="ti ti-lock" style="font-size:14px" aria-hidden="true"></i>from '+FM[src].label+'</span></div>';
+   rows+='<button type="button" class="tlrow locked" aria-disabled="true" data-act="blocked" data-team="'+esc(t)+'" title="Inherits from '+esc(FM[src].label)+'" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r-sm);opacity:.65">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[t].name)+'</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ter)"><i class="ti ti-lock" style="font-size:14px" aria-hidden="true"></i>from '+esc(FM[src].label)+'</span></button>';
    return;
   }
   var on=D.teams.has(t);
-  rows+='<div class="tlrow" onclick="toggleTeam(\''+t+'\')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r-sm);cursor:pointer;'+(on?'background:var(--brand-tint);':'')+'">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+TM[t].name+'</span><span style="font-size:11px;color:var(--ter)">'+TM[t].count+' members</span><i class="ti '+(on?'ti-checkbox':'ti-square')+'" style="font-size:17px;color:'+(on?'var(--brand)':'var(--ter)')+'" aria-hidden="true"></i></div>';
+  rows+='<button type="button" class="tlrow" data-act="toggle" data-team="'+esc(t)+'" aria-pressed="'+(on?'true':'false')+'" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r-sm);cursor:pointer;'+(on?'background:var(--brand-tint);':'')+'">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[t].name)+'</span><span style="font-size:11px;color:var(--ter)">'+esc(TM[t].count)+' members</span><i class="ti '+(on?'ti-checkbox':'ti-square')+'" style="font-size:17px;color:'+(on?'var(--brand)':'var(--ter)')+'" aria-hidden="true"></i></button>';
  });
  if(!rows)rows='<div style="font-size:12px;color:var(--ter);padding:10px">No teams available to add.</div>';
  list.innerHTML=rows;
@@ -239,7 +249,7 @@ function toggleTeam(t){
  if(!D.folder)return;
  if(D.teams.has(t)){D.teams.delete(t);blockMsg='';}
  else{if(hasAccess(t,D.folder)){blockInherited(t);return;}D.teams.add(t);blockMsg='';}
- renderBlock();renderChips();renderTeamList(document.getElementById('team-search').value);updateConfirm();
+ renderBlock();renderChips();renderTeamList(document.getElementById('team-search').value);updateConfirm();var se=document.getElementById('team-search');if(se)se.focus();
 }
 function updateConfirm(){var ok=!!(D.folder&&D.teams.size);document.getElementById('btn-confirm').disabled=!ok;document.getElementById('btn-another').disabled=!ok;}
 
@@ -254,7 +264,7 @@ function addGrant(another){
  if(another){
   D={folder:null,teams:new Set()};blockMsg='';
   resetPickerUI();
-  var tt=document.getElementById('added-toast');tt.innerHTML='<i class="ti ti-check" style="vertical-align:-2px" aria-hidden="true"></i> Added access on '+FM[fid].label+' for '+added+' team'+(added===1?'':'s')+'. Pick the next folder.';tt.style.display='block';
+  var tt=document.getElementById('added-toast');tt.innerHTML='<i class="ti ti-check" style="vertical-align:-2px" aria-hidden="true"></i> Added access on '+esc(FM[fid].label)+' for '+added+' team'+(added===1?'':'s')+'. Pick the next folder.';tt.style.display='block';
   document.getElementById('view-picker').scrollIntoView({behavior:'smooth',block:'start'});
  }else{closePicker();}
 }
@@ -262,12 +272,28 @@ function addGrant(another){
 function done(){
  var s=document.getElementById('summary');
  if(!S.grants.length){s.style.background='var(--neutral50)';s.style.color='var(--sec)';s.textContent='No folder access granted yet.';s.style.display='block';return;}
- var lines=S.grants.map(function(g){return TM[g.team].name+' \u2192 '+FM[g.folder].path;});
+ var lines=S.grants.map(function(g){return esc(TM[g.team].name)+' \u2192 '+esc(FM[g.folder].path);});
  s.style.background='var(--succ-bg)';s.style.color='var(--succ-tx)';s.innerHTML='Saved '+S.grants.length+' folder grant'+(S.grants.length===1?'':'s')+' (everything inside inherits automatically):<br>'+lines.join('<br>');s.style.display='block';
 }
 function resetAll(){location.reload();}
 
-document.getElementById('btn-add').onclick=openPicker;
+/* ===== Event wiring — no inline handler attributes; delegated where content is dynamic. ===== */
+document.getElementById('btn-add').addEventListener('click',openPicker);
+document.getElementById('btn-cancel-list').addEventListener('click',resetAll);
+document.getElementById('btn-done').addEventListener('click',done);
+document.getElementById('btn-back').addEventListener('click',closePicker);
+document.getElementById('btn-cancel-picker').addEventListener('click',closePicker);
+document.getElementById('btn-another').addEventListener('click',function(){addGrant(true);});
+document.getElementById('btn-confirm').addEventListener('click',function(){addGrant(false);});
+document.getElementById('team-search').addEventListener('input',function(){renderTeamList(this.value);});
+/* Static top-level folder buttons (workspace + project). */
+Array.prototype.slice.call(document.querySelectorAll('#folder-list .tnode')).forEach(function(b){
+ b.addEventListener('click',function(){selFolder(b.getAttribute('data-folder'));});
+});
+/* Delegated handlers for dynamically rendered rows/icons. Native <button> => Enter/Space work. */
+document.getElementById('grants').addEventListener('click',function(e){var b=e.target.closest('[data-act="remove"]');if(b)removeGrant(b.getAttribute('data-team'),b.getAttribute('data-folder'));});
+document.getElementById('team-chips').addEventListener('click',function(e){var b=e.target.closest('[data-act="toggle"]');if(b)toggleTeam(b.getAttribute('data-team'));});
+document.getElementById('teamlist').addEventListener('click',function(e){var b=e.target.closest('[data-act]');if(!b)return;var a=b.getAttribute('data-act');if(a==='toggle')toggleTeam(b.getAttribute('data-team'));else if(a==='blocked')blockInherited(b.getAttribute('data-team'));});
 renderGrants();
 </script>
 </body>
