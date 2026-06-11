@@ -47,7 +47,7 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .tabs{display:flex;gap:24px;border-bottom:1px solid var(--border);margin-bottom:24px;flex-wrap:wrap;}
 .tab{font-size:14px;font-weight:500;color:var(--sec);padding:10px 0;}
 .tab.active{color:var(--ink);font-weight:600;border-bottom:2px solid var(--brand);margin-bottom:-1px;}
-.layout{display:grid;grid-template-columns:200px 1fr;gap:28px;}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:28px;}
 .nav{display:flex;flex-direction:column;gap:4px;}
 .navitem{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500;color:var(--sec);padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;background:transparent;border:0;text-align:left;width:100%;font-family:inherit;}
 .navitem:hover{background:var(--neutral50);}.navitem.active{background:var(--brand-tint);color:var(--brand);font-weight:600;}
@@ -75,8 +75,8 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .btn{font:600 14px Inter;padding:9px 18px;border-radius:var(--r-sm);cursor:pointer;border:1px solid transparent;display:inline-flex;align-items:center;gap:6px;}
 .btn.primary{background:var(--brand);color:#fff;}.btn.primary:hover{background:var(--brand-hover);}
 .btn.outline{background:#fff;color:var(--brand);border-color:var(--brand-soft);}.btn.outline:hover{background:var(--brand-tint);}
-.btn.ghost{background:transparent;color:var(--sec);border-color:var(--border);}
-.btn.danger{background:var(--err-tx);color:#fff;}.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn.ghost{background:transparent;color:var(--sec);border-color:var(--border);}.btn.ghost:hover{background:var(--neutral50);}
+.btn.danger{background:var(--err-tx);color:#fff;}.btn.danger:hover{filter:brightness(.88);}.btn:disabled{opacity:.45;cursor:not-allowed;}
 .kebab{width:34px;height:34px;border-radius:var(--r-sm);border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--sec);font-size:18px;display:flex;align-items:center;justify-content:center;}
 .kebab:hover{background:var(--neutral50);}
 .spin{width:15px;height:15px;border:2px solid var(--brand-soft);border-top-color:var(--brand);border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;}
@@ -133,6 +133,23 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .fld.invalid .help{display:none;}
 .fld.invalid input{border-color:var(--err-tx);}
 .fld.invalid input:focus{border-color:var(--err-tx);box-shadow:0 0 0 3px var(--err-bg);}
+/* ---- Responsive (CP1-002): the two-pane catalogue must never overflow horizontally ----
+   Root cause: a bare `1fr` canvas track keeps a min-content floor (~557px) because the
+   sub-card header row (mark + name + badge + button + kebab) refuses to shrink, forcing a
+   ~813px minimum layout width. Fixes: (1) `.layout` uses minmax(0,1fr) so the canvas can
+   shrink below its content's min-content; (2) at tablet/phone widths the rail stacks above the
+   canvas as a single column so the canvas spans full width; (3) on very narrow screens the
+   sub-card row may wrap its action cluster onto a second line. Desktop (>=769px) is unchanged. */
+@media (max-width:768px){
+  .app{padding:24px 18px 48px;}
+  .layout{grid-template-columns:minmax(0,1fr);gap:18px;}
+  .nav{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;}
+  .navhint{width:100%;padding:8px 4px 2px;}
+  .navitem{width:auto;}
+}
+@media (max-width:480px){
+  .sub{flex-wrap:wrap;}
+}
 </style>
 </head>
 <body>
@@ -261,7 +278,7 @@ function render(){var provs=DATA[cat],h='';
   h+='<div><div class="company-name">'+esc(p.name)+'</div>'+(p.subs.length>1?'<div class="company-sub">'+p.subs.length+' connection types</div>':'')+'</div>'+'</div><div class="subs">';
   p.subs.forEach(function(sub){var s=st(sub.id);
    h+='<div class="sub"><div class="vmark"><i class="ti '+esc(p.mark==='az'?'ti-brand-azure':p.mark)+'" aria-hidden="true"></i></div>'+
-      '<div class="vinfo"><div class="vname"><span class="vtext">'+esc(sub.name)+'</span> '+(role!=='member'&&s!=='none'&&!sub.soon?badge(s):'')+'</div><div class="vdesc">'+esc(sub.desc)+'</div></div>'+actions(sub)+'</div>';});
+      '<div class="vinfo"><div class="vname"><span class="vtext">'+esc(sub.name)+'</span> '+(role!=='member'&&s!=='none'&&s!=='connecting'&&!sub.soon?badge(s):'')+'</div><div class="vdesc">'+esc(sub.desc)+'</div></div>'+actions(sub)+'</div>';});
   h+='</div></div>';});
  document.getElementById('canvas').innerHTML=h;wire();}
 function wire(){
