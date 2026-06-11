@@ -4,10 +4,27 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Blitzy — Integrations (redesign prototype)</title>
+<!--
+  DOWNSTREAM FORWARD-REFERENCES (documentation only — NOT implemented in this prototype).
+  This behavioral-and-visual prototype authoritatively specifies the behavior the following
+  production targets must satisfy. They are NOT files in this repository and are NOT created here:
+    • src/panel/workspace/settings/integrations.tsx  — route /workspace/settings/integrations
+    • SvcType enum  — extend with GitHub Enterprise Server + Bitbucket Data Center alongside
+                      GITHUB / AZURE_DEVOPS / GITLAB / GITLAB_SELF_HOSTED
+    • IntegrationTeamShareRequest + bulkUpdateIntegrationTeamAccess  — folder-aware, anchored on a
+                      stable folder/node identifier. Grant tuple {connectionId, folderStableId,
+                      folderPathSnapshot, teamId}; inheritance computed at read time; rename/move
+                      safe; delete = broken (only error case).
+    • GITLAB_SELF_HOSTED adapter  — template for new self-hosted adapters.
+    • TreeNode + MAX_GITLAB_DEPTH=20  — reused read-only (no backend tree-fetch changes).
+    • Project Source/Destination pickers  — read-side filtering by granted folders.
+-->
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css"/>
+<!-- SRI is not applicable to the dynamically generated Google Fonts CSS; crossorigin is added for CORS consistency. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css" integrity="sha384-Amzn4olt1DzKcamnc0ejzdJkVXDZuUXYZfSa4DKiYWKLMewTbAgmuDzqK0zufsXe" crossorigin="anonymous"/>
 <style>
 :root{
 --brand:#5b39f3;--brand-hover:#4f30d6;--brand-soft:#d4cbfc;--brand-tint:#f3f0ff;
@@ -17,6 +34,7 @@
 font-family:"Inter",system-ui,sans-serif;}
 *{box-sizing:border-box;}
 body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px;}
+/* DEMO-ONLY: state/role scenario toolbar styles — excluded from the production build. The dark literals in this block are sanctioned prototype-only values. */
 .demo{background:#1c1c22;color:#cfcad6;padding:10px 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:12px;}
 .demo b{color:#fff;font-weight:600;margin-right:4px;}.demo .grp{display:flex;gap:6px;align-items:center;}
 .demo button{font:500 12px Inter;padding:5px 11px;border-radius:7px;border:1px solid #3a3a44;background:#26262e;color:#cfcad6;cursor:pointer;}
@@ -32,7 +50,7 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .layout{display:grid;grid-template-columns:200px 1fr;gap:28px;}
 .nav{display:flex;flex-direction:column;gap:4px;}
 .navitem{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500;color:var(--sec);padding:10px 12px;border-radius:var(--r-sm);cursor:pointer;}
-.navitem:hover{background:#ececec;}.navitem.active{background:var(--brand-tint);color:var(--brand);font-weight:600;}
+.navitem:hover{background:var(--neutral50);}.navitem.active{background:var(--brand-tint);color:var(--brand);font-weight:600;}
 .navitem .ti{font-size:18px;}
 .navhint{font-size:11px;color:var(--ter);padding:14px 12px 6px;text-transform:uppercase;letter-spacing:1px;font-weight:600;}
 .canvas{min-height:300px;}
@@ -42,14 +60,12 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .brandmark{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--neutral50);}
 .brandmark.az{background:#0078d4;color:#fff;font-size:13px;font-weight:600;}
 .company-name{font-size:18px;font-weight:600;}.company-sub{font-size:13px;color:var(--ter);margin-top:1px;}
-.rollup{margin-left:auto;font-size:12px;font-weight:500;color:var(--sec);display:flex;align-items:center;gap:6px;}
-.rollup .dot{width:8px;height:8px;border-radius:50%;background:var(--ter);}
-.rollup .dot.g{background:#10b07a;}.rollup .dot.r{background:#e24b4a;}
 .subs{padding:8px 12px 12px;}
 .sub{display:flex;align-items:center;gap:14px;padding:14px 12px;border-radius:var(--r-sm);}
 .sub + .sub{border-top:1px solid var(--neutral50);}
 .vmark{width:26px;height:26px;border-radius:6px;background:var(--neutral50);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--sec);flex:0 0 auto;}
-.vinfo{min-width:0;}.vname{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;}
+.vinfo{min-width:0;}.vname{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0;}
+.vtext{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
 .vdesc{font-size:12.5px;color:var(--ter);margin-top:1px;}
 .badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;}
 .badge.ok{background:var(--succ-bg);color:var(--succ-tx);}.badge.err{background:var(--err-bg);color:var(--err-tx);}
@@ -64,6 +80,8 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .kebab:hover{background:var(--neutral50);}
 .spin{width:15px;height:15px;border:2px solid var(--brand-soft);border-top-color:var(--brand);border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
+/* Respect reduced-motion: stop the spin and leave a static ring indicator. */
+@media (prefers-reduced-motion: reduce){.spin{animation:none;}}
 .readonly{font-size:12px;color:var(--ter);font-style:italic;}
 .menu{position:absolute;background:#fff;border:1px solid var(--border);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:6px;min-width:210px;z-index:40;}
 .menu div{display:flex;align-items:center;gap:9px;font-size:13.5px;padding:9px 10px;border-radius:6px;cursor:pointer;}
@@ -97,52 +115,71 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .share input.q{width:100%;height:34px;border:1px solid var(--border);border-radius:6px;padding:0 10px;font:400 13px Inter;margin-bottom:6px;}
 .res{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 8px;border-radius:6px;cursor:pointer;}
 .res:hover{background:var(--neutral50);}
+/* folder-first sharing: folder hierarchy + direct-vs-inherited rows + redundant-grant notice (E8) */
+.frow.child{padding-left:24px;}
+.frow .fn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.muted{font-size:13px;color:var(--ter);padding:4px 0;}
+.uic{margin-right:6px;color:var(--sec);}
+.acc.inh{color:var(--sec);}
+.acc.inh .lock{color:var(--ter);font-size:14px;margin-right:6px;vertical-align:-2px;}
+.acc.inh .src{color:var(--ter);font-size:12px;margin-left:4px;}
+.rgrant{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--err-tx);background:var(--err-bg);border-radius:6px;padding:7px 9px;margin-bottom:8px;}
+.addp{color:var(--brand);font-size:15px;flex:0 0 auto;}
+/* inline field-level error for a malformed self-hosted URL (C3) */
+.ferr{font-size:12px;color:var(--err-tx);margin-top:5px;display:none;}
+.fld.invalid .ferr{display:block;}
+.fld.invalid .help{display:none;}
+.fld.invalid input{border-color:var(--err-tx);}
+.fld.invalid input:focus{border-color:var(--err-tx);box-shadow:0 0 0 3px var(--err-bg);}
 </style>
 </head>
 <body>
+<!-- DEMO-ONLY: state/role scenario toolbar — excluded from the production build. Strip this entire block (and the .demo CSS) for production. -->
 <div class="demo">
   <span class="grp"><b>State</b>
     <button data-scn="zero">Zero</button>
     <button data-scn="mixed" class="on">Connected (mixed)</button>
-    <button data-scn="ideal">Ideal (all)</button></span>
+    <button data-scn="ideal">Ideal (all)</button>
+    <button data-scn="connecting">Connecting</button></span>
   <span class="grp"><b>Role</b>
     <button data-role="admin" class="on">Super Admin</button>
     <button data-role="member">Team Member</button></span>
   <span class="log" id="log">Ready</span>
 </div>
+<!-- /DEMO-ONLY -->
 <div class="app">
   <div class="topbar"><div class="logo">B</div><div class="logo-t">Blitzy</div></div>
   <div class="tabs">
     <div class="tab">Plan &amp; Usage</div><div class="tab">Team</div>
     <div class="tab active">Integrations</div><div class="tab">Environments</div>
     <div class="tab">Rules</div><div class="tab">Artifacts</div>
-    <div class="tab">Notifications</div><div class="tab">Profile</div><div class="tab">Password</div>
+    <div class="tab">Web search</div><div class="tab">Notifications</div><div class="tab">Profile</div><div class="tab">Password</div>
   </div>
   <div class="layout">
     <div class="nav">
       <div class="navhint">Categories</div>
-      <div class="navitem active" data-cat="scm"><i class="ti ti-code"></i>SCM</div>
-      <div class="navitem" data-cat="design"><i class="ti ti-palette"></i>Design</div>
+      <div class="navitem active" data-cat="scm"><i class="ti ti-code" aria-hidden="true"></i>SCM</div>
+      <div class="navitem" data-cat="design"><i class="ti ti-palette" aria-hidden="true"></i>Design</div>
       <div class="navhint">More to come</div>
     </div>
     <div class="canvas" id="canvas"></div>
   </div>
 </div>
-<div class="scrim" id="scrim"><div class="dialog" id="dialog"></div></div>
+<div class="scrim" id="scrim"><div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" tabindex="-1"></div></div>
 <script>
 var FORMS={
  github:{title:'GitHub Enterprise Server connection',mark:'ti-brand-github',top:'First, register an OAuth app in GitHub Enterprise',learn:true,
-   fields:[{l:'Server URL',ph:'https://github.yourcompany.com',h:"Your organization's GitHub Enterprise Server",req:true},
+   fields:[{l:'Server URL',ph:'https://github.yourcompany.com',h:"Your organization's GitHub Enterprise Server",req:true,url:true},
            {l:'Client ID',ph:'',h:'Developer settings, then OAuth Apps',req:true},
-           {l:'Client secret',ph:'',h:'Shown once when registering the app',req:true}]},
+           {l:'Client secret',ph:'',h:'Shown once when registering the app',req:true,secret:true}]},
  gitlab:{title:'GitLab Self-Managed connection',mark:'ti-brand-gitlab',top:'First, create an application in GitLab',learn:true,
-   fields:[{l:'GitLab URL',ph:'https://gitlab.yourcompany.com',h:"Your organization's GitLab instance",req:true},
+   fields:[{l:'GitLab URL',ph:'https://gitlab.yourcompany.com',h:"Your organization's GitLab instance",req:true,url:true},
            {l:'Application ID',ph:'',h:'Preferences, then Applications',req:true},
-           {l:'Secret',ph:'',h:'Shown once when creating the application',req:true}]},
+           {l:'Secret',ph:'',h:'Shown once when creating the application',req:true,secret:true}]},
  bitbucket:{title:'Bitbucket Data Center connection',mark:'ti-brand-bitbucket',top:'First, create an application in Bitbucket',learn:true,
-   fields:[{l:'Bitbucket URL',ph:'https://bitbucket.yourcompany.com',h:"Your organization's Bitbucket instance",req:true},
+   fields:[{l:'Bitbucket URL',ph:'https://bitbucket.yourcompany.com',h:"Your organization's Bitbucket instance",req:true,url:true},
            {l:'Application ID',ph:'',h:'Administration, then Application Links',req:true},
-           {l:'Secret',ph:'',h:'Shown once when creating the application',req:true}]}
+           {l:'Secret',ph:'',h:'Shown once when creating the application',req:true,secret:true}]}
 };
 var DATA={
  scm:[
@@ -159,39 +196,44 @@ var DATA={
  ],
  design:[{key:'figma',name:'Figma',mark:'ti-brand-figma',subs:[{id:'fig',name:'Figma',desc:'Share frames as design input',soon:true}]}]
 };
-var PRESETS={zero:{},mixed:{gh:'connected',ghe:'failed',ado:'connected'},ideal:{gh:'connected',ghe:'connected',gl:'connected',gls:'connected',ado:'connected',bb:'connected'}};
+var PRESETS={zero:{},mixed:{gh:'connected',ghe:'failed',ado:'connected'},connecting:{gh:'connecting',ghe:'connecting',ado:'connecting'},ideal:{gh:'connected',ghe:'connected',gl:'connected',gls:'connected',ado:'connected',bb:'connected'}};
 var TEAMS=['Galatea UI','Infra','QA Automation','Back-end','Frontend Guild','Security','Payments'];
+/* Per-provider top-level folder forest. The root (parent:null) is the account/org scope — the
+   conceptual ancestor — and its children are the top-level folders. A grant on an ancestor inherits
+   DOWN to descendants (resolved at READ TIME, never stored). Top-level only: no repo/branch levels. */
+var FOLDERS={
+ github:[{id:'org',n:'acme-corp',parent:null},{id:'platform',n:'platform',parent:'org'},{id:'design',n:'design-system',parent:'org'},{id:'infra',n:'infra',parent:'org'}],
+ gitlab:[{id:'org',n:'acme',parent:null},{id:'platform',n:'platform',parent:'org'},{id:'design',n:'design',parent:'org'},{id:'data',n:'data-eng',parent:'org'}],
+ azure:[{id:'org',n:'AcmeCorp',parent:null},{id:'platform',n:'Platform',parent:'org'},{id:'design',n:'Design',parent:'org'},{id:'mobile',n:'Mobile',parent:'org'}],
+ bitbucket:[{id:'org',n:'acme',parent:null},{id:'platform',n:'platform',parent:'org'},{id:'design',n:'design',parent:'org'},{id:'qa',n:'qa-suite',parent:'org'}],
+ figma:[{id:'org',n:'Acme Design',parent:null},{id:'platform',n:'Product',parent:'org'},{id:'design',n:'Brand',parent:'org'}]
+};
 var cstate={},cat='scm',role='admin',grants={};
 function st(id){return cstate[id]||'none';}
 function setScenario(s){cstate=Object.assign({},PRESETS[s]);render();log('Loaded "'+s+'" state');}
 function log(t){document.getElementById('log').textContent=t;}
 function find(id){var r=null;['scm','design'].forEach(function(c){DATA[c].forEach(function(p){p.subs.forEach(function(x){if(x.id===id)r=x;});});});return r;}
+function findProv(id){var r=null;['scm','design'].forEach(function(c){DATA[c].forEach(function(p){p.subs.forEach(function(x){if(x.id===id)r=p;});});});return r;}
 function q(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
-
-function rollup(p){var c=0,f=0,t=0;p.subs.forEach(function(s){if(s.soon)return;t++;if(st(s.id)==='connected')c++;if(st(s.id)==='failed')f++;});
- if(f)return '<span class="rollup"><span class="dot r"></span>'+f+' needs attention</span>';
- if(c===t&&t>0)return '<span class="rollup"><span class="dot g"></span>All connected</span>';
- if(c>0)return '<span class="rollup"><span class="dot g"></span>'+c+' of '+t+' connected</span>';
- return '<span class="rollup"><span class="dot"></span>Not connected</span>';}
-function badge(s){if(s==='connected')return '<span class="badge ok"><i class="ti ti-circle-check"></i>Connected</span>';
- if(s==='failed')return '<span class="badge err"><i class="ti ti-alert-circle"></i>Connection failed</span>';
- if(s==='connecting')return '<span class="badge run"><span class="spin"></span>Connecting</span>';return '';}
+function badge(s){if(s==='connected')return '<span class="badge ok"><i class="ti ti-circle-check-filled" aria-hidden="true"></i>Connected</span>';
+ if(s==='failed')return '<span class="badge err"><i class="ti ti-alert-circle" aria-hidden="true"></i>Connection failed</span>';
+ if(s==='connecting')return '<span class="badge run"><span class="spin" aria-hidden="true"></span>Connecting</span>';return '';}
 function actions(sub){var s=st(sub.id);
  if(sub.soon)return '<div class="actions"><span class="badge soon">Coming soon</span></div>';
- if(role==='member'){if(s==='connected')return '<div class="actions"><span class="badge ok"><i class="ti ti-circle-check"></i>Connected</span></div>';
+ if(role==='member'){if(s==='connected')return '<div class="actions"><span class="badge ok"><i class="ti ti-circle-check-filled" aria-hidden="true"></i>Connected</span></div>';
    return '<div class="actions"><span class="readonly">'+(s==='failed'?'Unavailable':'Not connected')+'</span></div>';}
- if(s==='connecting')return '<div class="actions"><span class="badge run"><span class="spin"></span>Connecting</span></div>';
- if(s==='connected')return '<div class="actions"><button class="btn outline" data-manage="'+sub.id+'">Manage</button><button class="kebab" data-kebab="'+sub.id+'"><i class="ti ti-dots"></i></button></div>';
- if(s==='failed')return '<div class="actions"><button class="btn primary" data-connect="'+sub.id+'"><i class="ti ti-refresh"></i>Reconnect</button><button class="kebab" data-kebab="'+sub.id+'"><i class="ti ti-dots"></i></button></div>';
+ if(s==='connecting')return '<div class="actions"><span class="badge run"><span class="spin" aria-hidden="true"></span>Connecting</span></div>';
+ if(s==='connected')return '<div class="actions"><button class="btn outline" data-manage="'+sub.id+'">Manage</button><button class="kebab" data-kebab="'+sub.id+'" aria-label="Connection options" aria-haspopup="menu" aria-expanded="false"><i class="ti ti-dots" aria-hidden="true"></i></button></div>';
+ if(s==='failed')return '<div class="actions"><button class="btn primary" data-connect="'+sub.id+'"><i class="ti ti-refresh" aria-hidden="true"></i>Reconnect</button><button class="kebab" data-kebab="'+sub.id+'" aria-label="Connection options" aria-haspopup="menu" aria-expanded="false"><i class="ti ti-dots" aria-hidden="true"></i></button></div>';
  return '<div class="actions"><button class="btn primary" data-connect="'+sub.id+'">Connect</button></div>';}
 function render(){var provs=DATA[cat],h='';
  if(!provs||!provs.length){document.getElementById('canvas').innerHTML='<div class="cat-empty">No integrations in this category yet.</div>';return;}
  provs.forEach(function(p){h+='<div class="company"><div class="company-h">';
-  h+=p.mark==='az'?'<div class="brandmark az">AZ</div>':'<div class="brandmark"><i class="ti '+p.mark+'"></i></div>';
+  h+=p.mark==='az'?'<div class="brandmark az">AZ</div>':'<div class="brandmark"><i class="ti '+p.mark+'" aria-hidden="true"></i></div>';
   h+='<div><div class="company-name">'+p.name+'</div>'+(p.subs.length>1?'<div class="company-sub">'+p.subs.length+' connection types</div>':'')+'</div>'+'</div><div class="subs">';
   p.subs.forEach(function(sub){var s=st(sub.id);
-   h+='<div class="sub"><div class="vmark"><i class="ti '+(p.mark==='az'?'ti-brand-azure':p.mark)+'"></i></div>'+
-      '<div class="vinfo"><div class="vname">'+sub.name+' '+(s!=='none'&&!sub.soon?badge(s):'')+'</div><div class="vdesc">'+sub.desc+'</div></div>'+actions(sub)+'</div>';});
+   h+='<div class="sub"><div class="vmark"><i class="ti '+(p.mark==='az'?'ti-brand-azure':p.mark)+'" aria-hidden="true"></i></div>'+
+      '<div class="vinfo"><div class="vname"><span class="vtext">'+sub.name+'</span> '+(s!=='none'&&!sub.soon?badge(s):'')+'</div><div class="vdesc">'+sub.desc+'</div></div>'+actions(sub)+'</div>';});
   h+='</div></div>';});
  document.getElementById('canvas').innerHTML=h;wire();}
 function wire(){
@@ -203,19 +245,21 @@ function wire(){
 function startConnect(id){var sub=find(id),c=sub.connect;
  if(c.kind==='oauth')oauthModal(sub);else formModal(sub);}
 function oauthModal(sub){var d=document.getElementById('dialog');
- d.innerHTML='<div class="dh"><i class="ti ti-'+(sub.connect.provider==='Azure DevOps'?'brand-azure':'brand-'+(sub.connect.provider==='GitHub'?'github':'gitlab'))+'"></i><h3>Connect '+sub.name+'</h3></div>'+
+ d.innerHTML='<div class="dh"><i class="ti ti-'+(sub.connect.provider==='Azure DevOps'?'brand-azure':'brand-'+(sub.connect.provider==='GitHub'?'github':'gitlab'))+'" aria-hidden="true"></i><h3 id="dlgTitle">Connect '+sub.name+'</h3></div>'+
   '<p class="dlede">You will be redirected to '+sub.connect.provider+' to authorize Blitzy. After you approve, you will return here and the connection will be active.</p>'+
-  '<div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn primary" id="dyes"><i class="ti ti-external-link"></i>Authorize on '+sub.connect.provider+'</button></div>';
+  '<div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn primary" id="dyes"><i class="ti ti-external-link" aria-hidden="true"></i>Authorize on '+sub.connect.provider+'</button></div>';
  show();document.getElementById('dno').onclick=closeD;
  document.getElementById('dyes').onclick=function(){closeD();doConnect(sub.id);};}
 function formModal(sub){var f=FORMS[sub.connect.form],vals={};var d=document.getElementById('dialog');
- function valid(){return f.fields.filter(function(x){return x.req;}).every(function(x){return (vals[x.l]||'').trim();});}
+ function validUrl(v){try{var u=new URL((v||'').trim());return u.protocol==='http:'||u.protocol==='https:';}catch(e){return false;}}
+ function badUrl(x){return x.url&&(vals[x.l]||'').trim()&&!validUrl(vals[x.l]);}
+ function valid(){return f.fields.every(function(x){var v=(vals[x.l]||'').trim();if(x.req&&!v)return false;if(x.url&&v&&!validUrl(v))return false;return true;});}
  function paint(){
-  d.innerHTML='<div class="dh"><i class="ti '+f.mark+'"></i><h3>'+f.title+'</h3></div>'+
+  d.innerHTML='<div class="dh"><i class="ti '+f.mark+'" aria-hidden="true"></i><h3 id="dlgTitle">'+f.title+'</h3></div>'+
    (f.top?'<div class="tophelp">'+f.top+(f.learn?' &nbsp;<a href="#" onclick="return false">Learn how &#8599;</a>':'')+'</div>':'')+
-   f.fields.map(function(x,i){return '<div class="fld"><label>'+x.l+'</label><input data-i="'+i+'" placeholder="'+x.ph+'" value="'+(vals[x.l]||'').replace(/"/g,'&quot;')+'"/><div class="help">'+x.h+'</div></div>';}).join('')+
+   f.fields.map(function(x,i){return '<div class="fld'+(badUrl(x)?' invalid':'')+'"><label for="fld'+i+'">'+x.l+'</label><input id="fld'+i+'" data-i="'+i+'" type="'+(x.secret?'password':'text')+'" placeholder="'+x.ph+'" value="'+(vals[x.l]||'').replace(/"/g,'&quot;')+'"'+(x.url?' aria-describedby="ferr'+i+'"':'')+(badUrl(x)?' aria-invalid="true"':'')+'/><div class="help">'+x.h+'</div>'+(x.url?'<div class="ferr" id="ferr'+i+'">Enter a valid URL that starts with http:// or https://</div>':'')+'</div>';}).join('')+
    '<div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn primary" id="dyes"'+(valid()?'':' disabled')+'>Connect</button></div>';
-  d.querySelectorAll('input[data-i]').forEach(function(inp){inp.oninput=function(){vals[f.fields[this.getAttribute('data-i')].l]=this.value;var y=document.getElementById('dyes');y.disabled=!valid();};});
+  d.querySelectorAll('input[data-i]').forEach(function(inp){inp.oninput=function(){var x=f.fields[this.getAttribute('data-i')];vals[x.l]=this.value;if(x.url){this.closest('.fld').classList.toggle('invalid',badUrl(x));this.setAttribute('aria-invalid',badUrl(x)?'true':'false');}document.getElementById('dyes').disabled=!valid();};});
   document.getElementById('dno').onclick=closeD;
   document.getElementById('dyes').onclick=function(){if(!valid())return;closeD();doConnect(sub.id);};
  }
@@ -224,58 +268,75 @@ function doConnect(id){cstate[id]='connecting';render();var nm=find(id).name;log
  setTimeout(function(){cstate[id]='connected';render();log(nm+' connected');},1100);}
 
 /* ---- 3-dot menu ---- */
-var openKebab=null;
-function openMenu(id,anchor){closeMenu();var sub=find(id);var m=document.createElement('div');m.className='menu';openKebab=m;
- m.innerHTML='<div data-m="refresh"><i class="ti ti-refresh"></i>Refresh connection</div>'+
-  '<div data-m="share"><i class="ti ti-users"></i>Share folder access</div>'+
-  '<div class="sep"></div>'+
-  '<div class="danger" data-m="disconnect"><i class="ti ti-unlink"></i>Disconnect</div>'+
-  '<div class="danger" data-m="revoke"><i class="ti ti-shield-x"></i>Revoke access</div>';
+var openKebab=null,menuAnchor=null;
+function openMenu(id,anchor){closeMenu();var sub=find(id);var m=document.createElement('div');m.className='menu';m.setAttribute('role','menu');m.setAttribute('aria-label','Connection options');openKebab=m;menuAnchor=anchor;anchor.setAttribute('aria-expanded','true');
+ m.innerHTML='<div role="menuitem" tabindex="0" data-m="refresh"><i class="ti ti-refresh" aria-hidden="true"></i>Refresh connection</div>'+
+  '<div role="menuitem" tabindex="0" data-m="share"><i class="ti ti-users" aria-hidden="true"></i>Share folder access</div>'+
+  '<div class="sep" role="separator"></div>'+
+  '<div class="danger" role="menuitem" tabindex="0" data-m="disconnect"><i class="ti ti-unlink" aria-hidden="true"></i>Disconnect</div>'+
+  '<div class="danger" role="menuitem" tabindex="0" data-m="revoke"><i class="ti ti-shield-x" aria-hidden="true"></i>Revoke access</div>';
  document.body.appendChild(m);var r=anchor.getBoundingClientRect();
  m.style.top=(window.scrollY+r.bottom+6)+'px';m.style.left=(window.scrollX+r.right-m.offsetWidth)+'px';
- m.querySelectorAll('[data-m]').forEach(function(it){it.onclick=function(){var a=this.getAttribute('data-m');closeMenu();onMenu(a,sub);};});}
-function closeMenu(){if(openKebab){openKebab.remove();openKebab=null;}}
-document.addEventListener('click',closeMenu);
-function onMenu(a,sub){
+ var items=Array.prototype.slice.call(m.querySelectorAll('[data-m]'));
+ items.forEach(function(it,idx){it.onclick=function(){var a=this.getAttribute('data-m');var anc=menuAnchor;closeMenu();onMenu(a,sub,anc);};
+  it.onkeydown=function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();this.click();}else if(ev.key==='ArrowDown'){ev.preventDefault();(items[idx+1]||items[0]).focus();}else if(ev.key==='ArrowUp'){ev.preventDefault();(items[idx-1]||items[items.length-1]).focus();}};});
+ if(items[0])items[0].focus();}
+function closeMenu(ret){if(openKebab){openKebab.remove();openKebab=null;}if(menuAnchor){menuAnchor.setAttribute('aria-expanded','false');if(ret===true&&document.body.contains(menuAnchor)&&menuAnchor.focus)menuAnchor.focus();menuAnchor=null;}}
+document.addEventListener('click',function(){closeMenu();});
+function onMenu(a,sub,anchor){
  if(a==='refresh'){cstate[sub.id]='connecting';render();log('Refreshing '+sub.name+'…');setTimeout(function(){cstate[sub.id]='connected';render();log(sub.name+' refreshed');},800);return;}
- if(a==='share'){shareModal(sub);return;}
+ if(a==='share'){shareModal(sub,anchor);return;}
  if(a==='disconnect')confirmD('Disconnect '+sub.name+'?',
    'Blitzy will stop using this connection. Folder access granted to teams from it, and any project using it, will break. The app stays installed on the server, so you can reconnect later without re-approving.',
-   'Disconnect',function(){cstate[sub.id]='none';render();log(sub.name+' disconnected');});
+   'Disconnect',function(){cstate[sub.id]='none';render();log(sub.name+' disconnected');},anchor);
  if(a==='revoke')confirmD('Revoke access to '+sub.name+'?',
    'This removes Blitzy from the server entirely and revokes its permissions at the source. All folder grants and connected projects break. To use it again you must reinstall and re-approve from scratch.',
-   'Revoke access',function(){cstate[sub.id]='none';render();log(sub.name+' access revoked');});}
+   'Revoke access',function(){cstate[sub.id]='none';render();log(sub.name+' access revoked');},anchor);}
 
 /* ---- folder sharing (top-level folders, push, inheritance) ---- */
-function shareModal(sub){var folders=[{id:'platform',n:'platform'},{id:'design',n:'design'}];
- var key=sub.id;grants[key]=grants[key]||{platform:['Frontend Guild'],design:[]};var sel='platform',qy='';
+function shareModal(sub,anchor){var prov=findProv(sub.id),pk=prov?prov.key:'github',folders=FOLDERS[pk]||FOLDERS.github;
+ var key=sub.id;grants[key]=grants[key]||{org:['Security'],platform:['Frontend Guild'],design:[]};var sel='platform',qy='';
  var d=document.getElementById('dialog');
+ function byId(id){for(var i=0;i<folders.length;i++){if(folders[i].id===id)return folders[i];}return null;}
+ function ancestorsOf(id){var out=[],cur=byId(id);while(cur&&cur.parent){var p=byId(cur.parent);if(!p)break;out.push(p);cur=p;}return out;}
+ function inheritedFor(id){var g=grants[key],direct=g[id]||[],seen={},res=[];ancestorsOf(id).forEach(function(a){(g[a.id]||[]).forEach(function(t){if(direct.indexOf(t)<0&&!seen[t]){seen[t]=true;res.push({team:t,from:a.n});}});});return res;}
  function paint(){
   var g=grants[key];
-  var fl=folders.map(function(f){return '<div class="frow '+(f.id===sel?'sel':'')+'" data-f="'+f.id+'"><i class="ti ti-folder"></i>'+f.n+'<span class="c">'+(g[f.id]||[]).length+'</span></div>';}).join('');
-  var cur=g[sel]||[];
-  var accHtml=cur.length?cur.map(function(t){return '<div class="acc"><span><i class="ti ti-users" style="margin-right:6px;color:var(--sec)"></i>'+t+'</span><span class="rm" data-rm="'+t+'">Remove</span></div>';}).join(''):'<div style="font-size:13px;color:var(--ter)">No teams yet.</div>';
-  var avail=TEAMS.filter(function(t){return cur.indexOf(t)<0&&t.toLowerCase().indexOf(qy.toLowerCase())>=0;});
-  var resHtml=avail.length?avail.map(function(t){return '<div class="res" data-add="'+t+'"><span><i class="ti ti-users" style="margin-right:6px;color:var(--sec)"></i>'+t+'</span><i class="ti ti-plus" style="color:var(--brand)"></i></div>';}).join(''):'<div style="font-size:12px;color:var(--ter);padding:6px 8px">No teams found.</div>';
-  d.innerHTML='<div class="dh"><i class="ti '+(sub.connect&&sub.connect.form?FORMS[sub.connect.form].mark:'ti-brand-github')+'"></i><h3>'+sub.name+' — folder access</h3></div>'+
+  var fl=folders.map(function(f){return '<div class="frow'+(f.parent?' child':'')+(f.id===sel?' sel':'')+'" data-f="'+f.id+'"><i class="ti '+(f.parent?'ti-folder':'ti-building')+'" aria-hidden="true"></i><span class="fn">'+f.n+'</span><span class="c">'+(g[f.id]||[]).length+'</span></div>';}).join('');
+  var selF=byId(sel)||{n:sel};var cur=g[sel]||[];var inh=inheritedFor(sel);var inhSet={};inh.forEach(function(x){inhSet[x.team]=x.from;});
+  var dHtml=cur.length?cur.map(function(t){return '<div class="acc"><span><i class="ti ti-users uic" aria-hidden="true"></i>'+t+'</span><span class="rm" data-rm="'+t+'">Remove</span></div>';}).join(''):'<div class="muted">No teams added directly.</div>';
+  var iHtml=inh.length?'<div class="lbl">Inherited</div>'+inh.map(function(x){return '<div class="acc inh"><span><i class="ti ti-lock lock" aria-hidden="true"></i>'+x.team+'<span class="src">from '+x.from+'</span></span></div>';}).join(''):'';
+  var ql=qy.toLowerCase();
+  var avail=TEAMS.filter(function(t){return cur.indexOf(t)<0&&!inhSet[t]&&t.toLowerCase().indexOf(ql)>=0;});
+  var redun=qy.trim()?TEAMS.filter(function(t){return inhSet[t]&&t.toLowerCase().indexOf(ql)>=0;}):[];
+  var redHtml=redun.map(function(t){return '<div class="rgrant"><i class="ti ti-info-circle" aria-hidden="true"></i>'+t+' already inherits access from '+inhSet[t]+'.</div>';}).join('');
+  var resHtml=avail.length?avail.map(function(t){return '<div class="res" data-add="'+t+'"><span><i class="ti ti-users uic" aria-hidden="true"></i>'+t+'</span><i class="ti ti-plus addp" aria-hidden="true"></i></div>';}).join(''):(redun.length?'':'<div class="muted">No teams found.</div>');
+  d.innerHTML='<div class="dh"><i class="ti '+(sub.connect&&sub.connect.form?FORMS[sub.connect.form].mark:(prov?(prov.mark==='az'?'ti-brand-azure':prov.mark):'ti-brand-github'))+'" aria-hidden="true"></i><h3 id="dlgTitle">'+sub.name+' — folder access</h3></div>'+
    '<p class="dlede">Grant a team access to a top-level folder. Everything inside inherits it. This connection has its own access, separate from other connections.</p>'+
-   '<div class="share"><div class="fl">'+fl+'</div><div class="fr"><div class="lbl">Teams with access to '+sel+'</div>'+accHtml+
-   '<div class="lbl">Add a team</div><input class="q" id="q" placeholder="Search teams" value="'+qy.replace(/"/g,'&quot;')+'"/><div id="res">'+resHtml+'</div></div></div>'+
+   '<div class="share"><div class="fl">'+fl+'</div><div class="fr"><div class="lbl">Teams with access to '+selF.n+'</div>'+dHtml+iHtml+
+   '<div class="lbl">Add a team</div><input class="q" id="q" placeholder="Search teams" aria-label="Search teams to add" value="'+qy.replace(/"/g,'&quot;')+'"/>'+redHtml+'<div id="res">'+resHtml+'</div></div></div>'+
    '<div class="drow"><button class="btn primary" id="dno">Done</button></div>';
   d.querySelectorAll('[data-f]').forEach(function(e){e.onclick=function(){sel=this.getAttribute('data-f');qy='';paint();};});
-  d.querySelectorAll('[data-rm]').forEach(function(e){e.onclick=function(){var t=this.getAttribute('data-rm');g[sel]=g[sel].filter(function(z){return z!==t;});paint();};});
+  d.querySelectorAll('[data-rm]').forEach(function(e){e.onclick=function(){var t=this.getAttribute('data-rm');g[sel]=(g[sel]||[]).filter(function(z){return z!==t;});paint();};});
   d.querySelectorAll('[data-add]').forEach(function(e){e.onclick=function(){var t=this.getAttribute('data-add');(g[sel]=g[sel]||[]).push(t);qy='';paint();};});
   var qi=document.getElementById('q');if(qi)qi.oninput=function(){qy=this.value;paint();var n=document.getElementById('q');if(n){n.focus();n.setSelectionRange(qy.length,qy.length);}};
   document.getElementById('dno').onclick=function(){closeD();log('Updated folder access for '+sub.name);};
  }
- paint();show();}
+ paint();show(anchor);}
 
-function confirmD(t,b,a,yes){var d=document.getElementById('dialog');
- d.innerHTML='<h3>'+t+'</h3><p class="dlede" style="margin-top:8px">'+b+'</p><div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn danger" id="dyes">'+a+'</button></div>';
- show();document.getElementById('dno').onclick=closeD;document.getElementById('dyes').onclick=function(){closeD();yes();};}
-function show(){document.getElementById('scrim').classList.add('show');}
-function closeD(){document.getElementById('scrim').classList.remove('show');}
+function confirmD(t,b,a,yes,anchor){var d=document.getElementById('dialog');
+ d.innerHTML='<h3 id="dlgTitle">'+t+'</h3><p class="dlede" style="margin-top:8px">'+b+'</p><div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn danger" id="dyes">'+a+'</button></div>';
+ show(anchor);document.getElementById('dno').onclick=closeD;document.getElementById('dyes').onclick=function(){closeD();yes();};}
+var lastTrigger=null;
+function show(trigger){lastTrigger=(trigger&&trigger.focus)?trigger:document.activeElement;document.getElementById('scrim').classList.add('show');var dlg=document.getElementById('dialog');setTimeout(function(){var f=dlg.querySelector('input:not([disabled]),button:not([disabled]),a[href],select,textarea,[tabindex]:not([tabindex="-1"])');(f||dlg).focus();},0);}
+function closeD(){var s=document.getElementById('scrim');if(!s.classList.contains('show'))return;s.classList.remove('show');var t=lastTrigger;lastTrigger=null;if(t&&t.focus&&document.body.contains(t)){try{t.focus();}catch(e){}}}
+function scrimOpen(){return document.getElementById('scrim').classList.contains('show');}
+function focusables(){var dlg=document.getElementById('dialog');return Array.prototype.slice.call(dlg.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')).filter(function(el){return el.offsetWidth>0||el.offsetHeight>0;});}
 document.getElementById('scrim').addEventListener('click',function(e){if(e.target===this)closeD();});
+document.addEventListener('keydown',function(e){
+ if(e.key==='Escape'){if(openKebab){closeMenu(true);return;}if(scrimOpen()){closeD();return;}}
+ if(e.key==='Tab'&&scrimOpen()){var f=focusables();if(!f.length){e.preventDefault();return;}var first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+});
 
 q('[data-scn]').forEach(function(b){b.onclick=function(){q('[data-scn]').forEach(function(x){x.classList.remove('on');});this.classList.add('on');setScenario(this.getAttribute('data-scn'));};});
 q('[data-role]').forEach(function(b){b.onclick=function(){q('[data-role]').forEach(function(x){x.classList.remove('on');});this.classList.add('on');role=this.getAttribute('data-role');render();log('Role: '+(role==='admin'?'Super Admin':'Team Member'));};});
