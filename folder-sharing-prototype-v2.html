@@ -3,11 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Blitzy folder-level team sharing prototype — grant a team access to a top-level folder and everything inside inherits it automatically, scoped per connection. Direct grants are removable; inherited grants are read-only with their source named."/>
+<!-- Inline data-URI favicon (brand mark): keeps the prototype self-contained and prevents a /favicon.ico 404 without adding an asset file. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235b39f3'/><text x='16' y='23' font-family='Inter,Arial,sans-serif' font-size='20' font-weight='700' fill='white' text-anchor='middle'>B</text></svg>"/>
 <title>Folder-level sharing — prototype v2</title>
 <!-- Typeface: Inter (matches the canonical Blitzy design system / primary prototype). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- SRI is not applicable to the dynamically generated Google Fonts CSS; crossorigin is added for CORS consistency (parity with the primary file). -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" crossorigin="anonymous">
 <!-- Icons: Tabler Icons webfont @3.7.0 (consolidated with the primary file). SRI pinned to the published @3.7.0 build. -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css" integrity="sha384-Amzn4olt1DzKcamnc0ejzdJkVXDZuUXYZfSa4DKiYWKLMewTbAgmuDzqK0zufsXe" crossorigin="anonymous">
 <style>
@@ -15,6 +19,12 @@
    (blitzy-integrations-page.html). Every value below resolves to one of these tokens. */
 :root{
 --brand:#5b39f3;--brand-hover:#4f30d6;--brand-soft:#d4cbfc;--brand-tint:#f3f0ff;
+/* BLITZY [A11Y]: --ter (#999) is the canonical Figma color-text-tertiary and is design-authoritative
+   (AAP §0.2 "use the canonical Blitzy tokens verbatim"; §0.5.2 token manifest). On white/neutral
+   backgrounds it computes below WCAG AA (~2.6-2.85:1) for small text. Per the Figma/AAP-over-WCAG
+   precedence rule the value is PRESERVED EXACTLY here and flagged for designer review rather than
+   silently darkened to satisfy the minimum; downstream design may introduce a dedicated accessible
+   tertiary token. Kept identical to the primary file for token parity. */
 --ink:#000;--sec:#666;--ter:#999;--border:#d9d9d9;--neutral50:#f5f5f5;
 --succ-bg:#c9fcea;--succ-tx:#005335;--err-bg:#ffdfdf;--err-tx:#991010;
 --r:12px;--r-sm:8px;--shadow:0 15px 33px rgba(130,130,130,.10),0 2px 6px rgba(0,0,0,.05);
@@ -85,7 +95,7 @@ body{margin:0;background:var(--neutral50);min-height:100vh;display:flex;align-it
     <div id="team-chips" style="margin-bottom:8px"></div>
     <input class="srch" id="team-search" placeholder="Search teams…" aria-label="Search teams">
     <div id="teamlist" style="border:1px solid var(--border);border-radius:var(--r-sm);margin-top:8px;max-height:168px;overflow:auto;padding:4px;margin-bottom:8px"></div>
-    <!-- Inline redundant-grant notice (read-time inheritance block). Rendered in --err-tx; never a browser alert. -->
+    <!-- Inline redundant-grant notice (read-time inheritance block). Rendered in the error-text token; never a browser alert. -->
     <div id="block-msg" style="display:none;background:var(--err-bg);color:var(--err-tx);border-radius:var(--r-sm);padding:8px 10px;font-size:12px;margin-bottom:14px"></div>
 
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">

@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="description" content="Blitzy Workspace settings — Integrations: connect and manage source-control providers (GitHub, GitHub Enterprise, GitLab, Azure DevOps, Bitbucket) and design tools, with per-connection folder-level team access and automatic inheritance."/>
+<!-- Inline data-URI favicon (brand mark): keeps the prototype self-contained and prevents a /favicon.ico 404 without adding an asset file. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235b39f3'/><text x='16' y='23' font-family='Inter,Arial,sans-serif' font-size='20' font-weight='700' fill='white' text-anchor='middle'>B</text></svg>"/>
 <title>Blitzy — Integrations (redesign prototype)</title>
 <!--
   DOWNSTREAM FORWARD-REFERENCES (documentation only — NOT implemented in this prototype).
@@ -36,11 +39,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- SRI is not applicable to the dynamically generated Google Fonts CSS; crossorigin is added for CORS consistency. -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css" integrity="sha384-Amzn4olt1DzKcamnc0ejzdJkVXDZuUXYZfSa4DKiYWKLMewTbAgmuDzqK0zufsXe" crossorigin="anonymous"/>
 <style>
 :root{
 --brand:#5b39f3;--brand-hover:#4f30d6;--brand-soft:#d4cbfc;--brand-tint:#f3f0ff;
+/* BLITZY [A11Y]: --ter (#999) is the canonical Figma color-text-tertiary and is design-authoritative
+   (AAP §0.2 "use the canonical Blitzy tokens verbatim"; §0.5.2 token manifest). On white/neutral
+   backgrounds it computes below WCAG AA (~2.6-2.85:1) for small text. Per the Figma/AAP-over-WCAG
+   precedence rule the value is PRESERVED EXACTLY here and flagged for designer review rather than
+   silently darkened to satisfy the minimum; downstream design may introduce a dedicated accessible
+   tertiary token. */
 --ink:#000;--sec:#666;--ter:#999;--border:#d9d9d9;--neutral50:#f5f5f5;
 --succ-bg:#c9fcea;--succ-tx:#005335;--err-bg:#ffdfdf;--err-tx:#991010;
 --r:12px;--r-sm:8px;--shadow:0 15px 33px rgba(130,130,130,.10),0 2px 6px rgba(0,0,0,.05);
@@ -344,13 +353,20 @@ function formModal(sub){var f=FORMS[sub.connect.form],vals={},unreach=null;var d
  function badUrl(x){return x.url&&(vals[x.l]||'').trim()&&!validUrl(vals[x.l]);}
  function valid(){return f.fields.every(function(x){var v=(vals[x.l]||'').trim();if(x.req&&!v)return false;if(x.url&&v&&!validUrl(v))return false;return true;});}
  function paint(){
+  /* Semantic <form> wrapper (F-006 hardening): gives the credential inputs (incl. the password
+     field) a real form owner — silences the browser DOM-semantics warning, aids password managers,
+     and enables Enter-to-submit. Native submission is fully prevented via onsubmit->preventDefault;
+     Connect is the submit control, Cancel is explicit type="button". All existing validation and
+     reachability gating is preserved verbatim in the submit handler below. */
   d.innerHTML='<div class="dh"><i class="ti '+esc(f.mark)+'" aria-hidden="true"></i><h3 id="dlgTitle">'+esc(f.title)+'</h3></div>'+
+    '<form id="connForm" novalidate style="margin:0">'+
    (f.top?'<div class="tophelp">'+esc(f.top)+(f.learn?' &nbsp;<a href="'+esc(f.learn)+'" target="_blank" rel="noopener noreferrer">Learn how &#8599;</a>':'')+'</div>':'')+
-   f.fields.map(function(x,i){var syntaxBad=badUrl(x),reachBad=(unreach===x.l),bad=syntaxBad||reachBad,fmsg=reachBad?UNREACH_URL_ERR:SYNTAX_URL_ERR;return '<div class="fld'+(bad?' invalid':'')+'"><label for="fld'+i+'">'+esc(x.l)+'</label><input id="fld'+i+'" data-i="'+i+'" type="'+(x.secret?'password':'text')+'" placeholder="'+esc(x.ph)+'" value="'+esc(vals[x.l])+'"'+(x.url?' aria-describedby="ferr'+i+'"':'')+(bad?' aria-invalid="true"':'')+'/><div class="help">'+esc(x.h)+'</div>'+(x.url?'<div class="ferr" id="ferr'+i+'" role="alert">'+esc(fmsg)+'</div>':'')+'</div>';}).join('')+
-   '<div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn primary" id="dyes"'+(valid()?'':' disabled')+'>Connect</button></div>';
+   f.fields.map(function(x,i){var syntaxBad=badUrl(x),reachBad=(unreach===x.l),bad=syntaxBad||reachBad,fmsg=reachBad?UNREACH_URL_ERR:SYNTAX_URL_ERR;return '<div class="fld'+(bad?' invalid':'')+'"><label for="fld'+i+'">'+esc(x.l)+'</label><input id="fld'+i+'" data-i="'+i+'" type="'+(x.secret?'password':'text')+'" autocomplete="off" placeholder="'+esc(x.ph)+'" value="'+esc(vals[x.l])+'"'+(x.url?' aria-describedby="ferr'+i+'"':'')+(bad?' aria-invalid="true"':'')+'/><div class="help">'+esc(x.h)+'</div>'+(x.url?'<div class="ferr" id="ferr'+i+'" role="alert">'+esc(fmsg)+'</div>':'')+'</div>';}).join('')+
+   '<div class="drow"><button type="button" class="btn ghost" id="dno">Cancel</button><button type="submit" class="btn primary" id="dyes"'+(valid()?'':' disabled')+'>Connect</button></div>'+
+    '</form>';
   d.querySelectorAll('input[data-i]').forEach(function(inp){inp.oninput=function(){var x=f.fields[this.getAttribute('data-i')];vals[x.l]=this.value;if(x.url){if(unreach===x.l)unreach=null;var sb=badUrl(x);this.closest('.fld').classList.toggle('invalid',sb);this.setAttribute('aria-invalid',sb?'true':'false');var fe=this.closest('.fld').querySelector('.ferr');if(fe)fe.textContent=SYNTAX_URL_ERR;}document.getElementById('dyes').disabled=!valid();};});
   document.getElementById('dno').onclick=closeD;
-  document.getElementById('dyes').onclick=function(){if(!valid())return;var bf=null;f.fields.forEach(function(x){if(!bf&&x.url&&(vals[x.l]||'').trim()&&!reachable(vals[x.l]))bf=x;});if(bf){unreach=bf.l;paint();var bi=d.querySelector('.fld.invalid input');if(bi)bi.focus();log(find(sub.id).name+': server unreachable — check the URL');return;}closeD();doConnect(sub.id);};
+  document.getElementById('connForm').onsubmit=function(e){e.preventDefault();if(!valid())return;var bf=null;f.fields.forEach(function(x){if(!bf&&x.url&&(vals[x.l]||'').trim()&&!reachable(vals[x.l]))bf=x;});if(bf){unreach=bf.l;paint();var bi=d.querySelector('.fld.invalid input');if(bi)bi.focus();log(find(sub.id).name+': server unreachable — check the URL');return;}closeD();doConnect(sub.id);};
  }
  paint();show();}
 function doConnect(id){cstate[id]='connecting';render();var nm=find(id).name;log('Connecting '+nm+'…');
