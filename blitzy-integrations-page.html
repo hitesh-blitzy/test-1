@@ -106,7 +106,7 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .btn.outline{background:#fff;color:var(--brand);border-color:var(--brand);}.btn.outline:hover{background:var(--brand-tint);}
 .btn.ghost{background:transparent;color:var(--sec);border-color:var(--border);}.btn.ghost:hover{background:var(--neutral50);}
 .btn.danger{background:var(--err-tx);color:#fff;}.btn.danger:hover{filter:brightness(.88);}.btn:disabled{opacity:.5;cursor:not-allowed;}
-.kebab{width:34px;height:34px;border-radius:var(--r-sm);border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--sec);font-size:18px;display:flex;align-items:center;justify-content:center;}
+.kebab{width:34px;height:34px;border-radius:var(--r-sm);border:1px solid transparent;background:transparent;cursor:pointer;color:var(--ter);font-size:18px;display:flex;align-items:center;justify-content:center;}
 .kebab:hover{background:var(--neutral50);}
 .spin{width:15px;height:15px;border:2px solid var(--brand-soft);border-top-color:var(--brand);border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;}
 @keyframes sp{to{transform:rotate(360deg);}}
@@ -117,7 +117,8 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .menu div{display:flex;align-items:center;gap:9px;font-size:13.5px;padding:4px 12px;border-radius:6px;cursor:pointer;min-height:48px;}
 .menu div:hover{background:var(--neutral50);}.menu div.danger{color:var(--err-tx);}
 .menu .sep{height:1px;background:var(--neutral50);margin:4px 2px;padding:0;min-height:0;}
-.scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:60;}
+/* Scrim/overlay tint = AAP §0.5.2 documented color-scrim rgba(0,0,0,0.2) (Figma 36311:27803, fill-opacity 0.2). NOT a prototype radius/hover/tint override — kept at 0.2 for design fidelity. */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.2);display:none;align-items:center;justify-content:center;z-index:60;}
 .scrim.show{display:flex;}
 .dialog{background:#fff;border-radius:var(--r);width:520px;max-width:94vw;padding:24px;box-shadow:var(--shadow);max-height:88vh;overflow:auto;}
 .dialog h3{margin:0;font-size:18px;font-weight:600;}
@@ -126,6 +127,10 @@ body{margin:0;background:var(--neutral50);color:var(--ink);letter-spacing:-0.1px
 .dlede{font-size:13.5px;color:var(--sec);margin:0 0 16px;line-height:1.5;}
 .tophelp{background:var(--brand-tint);border-radius:var(--r-sm);padding:12px 14px;font-size:13px;margin-bottom:18px;}
 .tophelp a{color:var(--brand);font-weight:600;text-decoration:none;}
+/* Brand-consistent keyboard focus ring for the inline help link (matches .navitem / .frow :focus-visible).
+   Figma (36311:27931) shows the link as plain purple text with no box, so we use :focus-visible (keyboard-only)
+   to avoid an always-on outline while preserving an accessible focus indicator. */
+.tophelp a:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:2px;}
 .fld{margin-bottom:14px;}
 .fld label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;}
 .fld input{width:100%;height:40px;border:1px solid var(--border);border-radius:var(--r-sm);padding:0 12px;font:400 14px Inter;}
@@ -449,7 +454,12 @@ function confirmD(t,b,a,yes,anchor){var d=document.getElementById('dialog');
  d.innerHTML='<h3 id="dlgTitle">'+esc(t)+'</h3><p class="dlede" style="margin-top:8px">'+esc(b)+'</p><div class="drow"><button class="btn ghost" id="dno">Cancel</button><button class="btn danger" id="dyes">'+esc(a)+'</button></div>';
  show(anchor);document.getElementById('dno').onclick=closeD;document.getElementById('dyes').onclick=function(){closeD();yes();};}
 var lastTrigger=null;
-function show(trigger){lastTrigger=(trigger&&trigger.focus)?trigger:document.activeElement;document.getElementById('scrim').classList.add('show');var dlg=document.getElementById('dialog');setTimeout(function(){var f=dlg.querySelector('input:not([disabled]),button:not([disabled]),a[href],select,textarea,[tabindex]:not([tabindex="-1"])');(f||dlg).focus();},0);}
+function show(trigger){lastTrigger=(trigger&&trigger.focus)?trigger:document.activeElement;document.getElementById('scrim').classList.add('show');var dlg=document.getElementById('dialog');setTimeout(function(){
+  /* Initial focus skips help-banner links (.tophelp "Learn how ↗") so it lands on the first real control —
+     e.g. the URL field in formModal, which matches the Figma focused-field depiction (input 36311:27935 shown
+     focused with the brand stroke). The help link stays in the Tab order via focusables(); it is simply not the
+     auto-focus target on open (otherwise the browser draws a default outline on a non-primary affordance). */
+  var cands=dlg.querySelectorAll('input:not([disabled]),button:not([disabled]),a[href],select,textarea,[tabindex]:not([tabindex="-1"])'),f=null,i;for(i=0;i<cands.length;i++){if(!cands[i].closest('.tophelp')){f=cands[i];break;}}(f||cands[0]||dlg).focus();},0);}
 function closeD(){var s=document.getElementById('scrim');if(!s.classList.contains('show'))return;s.classList.remove('show');var t=lastTrigger;lastTrigger=null;if(t&&t.focus&&document.body.contains(t)){try{t.focus();}catch(e){}}}
 function scrimOpen(){return document.getElementById('scrim').classList.contains('show');}
 function focusables(){var dlg=document.getElementById('dialog');return Array.prototype.slice.call(dlg.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')).filter(function(el){return el.offsetWidth>0||el.offsetHeight>0;});}
