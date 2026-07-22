@@ -3,216 +3,307 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Blitzy folder-level team sharing prototype — grant a team access to a top-level folder and everything inside inherits it automatically, scoped per connection. Direct grants are removable; inherited grants are read-only with their source named."/>
+<!-- Inline data-URI favicon (brand mark): keeps the prototype self-contained and prevents a /favicon.ico 404 without adding an asset file. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235b39f3'/><text x='16' y='23' font-family='Inter,Arial,sans-serif' font-size='20' font-weight='700' fill='white' text-anchor='middle'>B</text></svg>"/>
 <title>Folder-level sharing — prototype v2</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/dist/tabler-icons.min.css">
+<!-- Typeface: Inter (matches the canonical Blitzy design system / primary prototype). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- SRI is not applicable to the dynamically generated Google Fonts CSS; crossorigin is added for CORS consistency (parity with the primary file). -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet" crossorigin="anonymous">
+<!-- Icons: Tabler Icons webfont @3.7.0 (consolidated with the primary file). SRI pinned to the published @3.7.0 build. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css" integrity="sha384-Amzn4olt1DzKcamnc0ejzdJkVXDZuUXYZfSa4DKiYWKLMewTbAgmuDzqK0zufsXe" crossorigin="anonymous">
 <style>
+/* Canonical Blitzy design tokens — single source of truth, copied verbatim from the primary file
+   (blitzy-integrations-page.html). Every value below resolves to one of these tokens. */
+:root{
+--brand:#5b39f3;--brand-hover:#4f30d6;--brand-soft:#d4cbfc;--brand-tint:#f3f0ff;
+/* BLITZY [A11Y]: --ter (#999) is the canonical Figma color-text-tertiary and is design-authoritative
+   (AAP §0.2 "use the canonical Blitzy tokens verbatim"; §0.5.2 token manifest). On white/neutral
+   backgrounds it computes below WCAG AA (~2.6-2.85:1) for small text. Per the Figma/AAP-over-WCAG
+   precedence rule the value is PRESERVED EXACTLY here and flagged for designer review rather than
+   silently darkened to satisfy the minimum; downstream design may introduce a dedicated accessible
+   tertiary token. Kept identical to the primary file for token parity. */
+--ink:#000;--sec:#666;--ter:#999;--border:#d9d9d9;--neutral50:#f5f5f5;
+--succ-bg:#c9fcea;--succ-tx:#005335;--err-bg:#ffdfdf;--err-tx:#991010;
+--r:12px;--r-sm:8px;--shadow:0 15px 33px rgba(130,130,130,.10),0 2px 6px rgba(0,0,0,.05);
+font-family:"Inter",system-ui,sans-serif;}
 *{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#EDEDF2;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:24px;color:#1F1F29}
-.md{width:100%;max-width:480px;background:#fff;border-radius:16px;padding:22px;box-shadow:0 12px 40px rgba(20,20,40,.18)}
-.tnode{display:flex;align-items:center;gap:8px;font-size:13px;color:#1F1F29;cursor:pointer;border-radius:8px;border:1px solid transparent;margin:1px 0}
-.tnode:hover{background:#F5F4FB}
-.tnode.sel{background:#F2F0FE;border-color:#C9C2F5;color:#4A3FC0;font-weight:600}
-.tp{flex:1;font-size:13px;padding:7px 0;border:1px solid #E6E6EC;background:#fff;color:#6E6E78;border-radius:8px;cursor:pointer;text-align:center}
-.tp.on{border-color:#C9C2F5;background:#F2F0FE;color:#4A3FC0}
-.lvl{font-size:12px;color:#1F1F29;border:1px solid #E6E6EC;border-radius:7px;padding:3px 8px;display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap}
-.pbtn{border:none;background:#5B4FE0;color:#fff;border-radius:9px;padding:8px 18px;font-size:14px;cursor:pointer}
+body{margin:0;background:var(--neutral50);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:24px;color:var(--ink)}
+.md{width:100%;max-width:480px;background:#fff;border-radius:var(--r);padding:22px;box-shadow:var(--shadow)}
+.tnode{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer;border-radius:var(--r-sm);border:1px solid transparent;margin:1px 0;width:100%;text-align:left;background:none;font-family:inherit}
+.tnode:hover{background:var(--neutral50)}
+.tnode.sel{background:var(--brand-tint);border-color:var(--brand-soft);color:var(--brand);font-weight:600}
+.pbtn{border:none;background:var(--brand);color:#fff;border-radius:var(--r-sm);padding:8px 18px;font-size:14px;cursor:pointer}
+.pbtn:hover{background:var(--brand-hover)}
 .pbtn:disabled{opacity:.4;cursor:not-allowed}
-.obtn{border:1px solid #E6E6EC;background:#fff;color:#1F1F29;border-radius:9px;padding:8px 14px;font-size:14px;cursor:pointer}
-.sbtn{border:1px solid #C9C2F5;background:#fff;color:#4A3FC0;border-radius:9px;padding:8px 12px;font-size:13px;cursor:pointer}
+.obtn{border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:var(--r-sm);padding:8px 14px;font-size:14px;cursor:pointer}
+.sbtn{border:1px solid var(--brand-soft);background:#fff;color:var(--brand);border-radius:var(--r-sm);padding:8px 12px;font-size:13px;cursor:pointer}
 .sbtn:disabled{opacity:.4;cursor:not-allowed}
-.srch{width:100%;border:1px solid #E6E6EC;border-radius:9px;padding:8px 10px;font-size:13px;outline:none}
-.srch:focus{border-color:#C9C2F5;box-shadow:0 0 0 3px #EEEDFE}
-.tlrow:hover{background:#F5F4FB}
+.srch{width:100%;border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;font-size:13px;outline:none}
+.srch:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint)}
+.tlrow:hover{background:var(--neutral50)}
+.tlrow.locked{cursor:not-allowed}
+.tlrow.locked:hover{background:transparent}
+.tlrow{display:flex;width:100%;text-align:left;background:none;border:none;font-family:inherit;color:inherit;cursor:pointer}
+.iconbtn{background:none;border:none;padding:0;margin:0;cursor:pointer;display:inline-flex;align-items:center;font-family:inherit;color:inherit;line-height:0}
+.iconbtn:hover{opacity:.7}
+.tnode:focus-visible,.tlrow:focus-visible,.iconbtn:focus-visible,.pbtn:focus-visible,.obtn:focus-visible,.sbtn:focus-visible,#btn-add:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 </style>
 </head>
 <body>
-<div class="md">
+<main class="md">
+  <!-- ============ LIST VIEW: folder-access summary for this one connection ============ -->
   <div id="view-list">
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px">
-      <i class="ti ti-brand-bitbucket" style="font-size:20px;color:#2160E6"></i>
-      <span style="font-size:16px;font-weight:600;color:#1F1F29;flex:1">Bitbucket Data Center sharing</span>
+      <i class="ti ti-brand-bitbucket" style="font-size:20px;color:#2684FF" aria-hidden="true"></i>
+      <span style="font-size:16px;font-weight:600;color:var(--ink);flex:1">Bitbucket Data Center — folder access</span>
     </div>
-    <div style="font-size:13px;color:#6E6E78;margin-bottom:16px">Choose what each team can access</div>
+    <div style="font-size:13px;color:var(--sec);margin-bottom:16px;line-height:1.5">Grant a team access to a top-level folder. Everything inside inherits it. This connection has its own access, separate from other connections.</div>
 
-    <div id="opt-me" onclick="setMode('personal')" style="display:flex;align-items:center;gap:10px;border:1px solid #E6E6EC;border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer">
-      <i class="ti ti-user" style="font-size:18px;color:#6E6E78"></i>
-      <div style="flex:1"><div style="font-size:14px;font-weight:600;color:#1F1F29">Just me</div><div style="font-size:12px;color:#9A9AA4">Work with this alone</div></div>
-      <span id="radio-me" style="width:18px;height:18px;border-radius:50%;border:1.5px solid #C9C9D2;display:inline-block"></span>
-    </div>
+    <div style="font-size:12px;color:var(--sec);margin-bottom:8px">Folder access</div>
+    <div id="grants"></div>
+    <button id="btn-add" style="width:100%;border:1px dashed var(--brand-soft);background:#fff;color:var(--brand);border-radius:var(--r-sm);padding:9px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-plus" style="font-size:16px" aria-hidden="true"></i>Add folder access</button>
 
-    <div id="opt-team" style="border:1px solid #C9C2F5;background:#F2F0FE;border-radius:12px;padding:12px 14px">
-      <div onclick="setMode('team')" style="display:flex;align-items:center;gap:10px;cursor:pointer">
-        <i class="ti ti-users" style="font-size:18px;color:#4A3FC0"></i>
-        <div style="flex:1"><div style="font-size:14px;font-weight:600;color:#1F1F29">Share with team</div><div style="font-size:12px;color:#6E6E78">Give teams access to specific folders</div></div>
-        <i id="radio-team" class="ti ti-circle-check-filled" style="font-size:20px;color:#5B4FE0"></i>
-      </div>
-      <div id="team-body" style="border-top:1px solid #DEDAF6;margin-top:12px;padding-top:10px">
-        <div style="font-size:12px;color:#6E6E78;margin-bottom:8px">Folder access</div>
-        <div id="grants"></div>
-        <button id="btn-add" style="width:100%;border:1px dashed #C9C2F5;background:#fff;color:#4A3FC0;border-radius:10px;padding:9px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-plus" style="font-size:16px"></i>Add folder access</button>
-      </div>
-      <div id="revoke" style="display:none;background:#FCEBEB;border-radius:9px;padding:10px 12px;margin-top:10px;font-size:12px;color:#A32D2D"></div>
-    </div>
-
-    <div id="summary" style="display:none;border-radius:9px;padding:10px 12px;margin-top:12px;font-size:12px"></div>
+    <div id="summary" style="display:none;border-radius:var(--r-sm);padding:10px 12px;margin-top:12px;font-size:12px"></div>
 
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-      <button class="obtn" onclick="resetAll()">Cancel</button>
-      <button class="pbtn" onclick="done()">Done</button>
+      <button type="button" class="obtn" id="btn-cancel-list">Cancel</button>
+      <button type="button" class="pbtn" id="btn-done">Done</button>
     </div>
   </div>
 
+  <!-- ============ PICKER VIEW: choose a top-level folder, then push access to teams ============ -->
   <div id="view-picker" style="display:none">
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px">
-      <i class="ti ti-arrow-left" onclick="closePicker()" style="font-size:18px;color:#6E6E78;cursor:pointer"></i>
-      <span style="font-size:16px;font-weight:600;color:#1F1F29;flex:1">Add folder access</span>
+      <button type="button" class="iconbtn backbtn" id="btn-back" title="Back" aria-label="Back to folder access" style="font-size:18px;color:var(--sec)"><i class="ti ti-arrow-left" aria-hidden="true"></i></button>
+      <span style="font-size:16px;font-weight:600;color:var(--ink);flex:1">Add folder access</span>
     </div>
-    <div style="font-size:13px;color:#6E6E78;margin-bottom:14px">Pick a folder, then choose who can access it</div>
+    <div style="font-size:13px;color:var(--sec);margin-bottom:14px">Pick a top-level folder, then choose which teams can access it. Everything inside inherits it.</div>
 
-    <div id="added-toast" style="display:none;background:#EAF3DE;color:#27500A;border-radius:8px;padding:7px 10px;font-size:12px;margin-bottom:12px"></div>
+    <div id="added-toast" style="display:none;background:var(--succ-bg);color:var(--succ-tx);border-radius:var(--r-sm);padding:7px 10px;font-size:12px;margin-bottom:12px"></div>
 
-    <div style="font-size:12px;color:#6E6E78;margin-bottom:6px">Folder</div>
-    <div style="border:1px solid #E6E6EC;border-radius:10px;padding:6px;margin-bottom:16px">
-      <div class="tnode" style="padding:6px 8px" onclick="selFolder('ws')"><i class="ti ti-building" style="font-size:16px"></i>blitzy-ai <span style="color:#9A9AA4;font-weight:400;font-size:11px">workspace</span></div>
-      <div class="tnode" style="padding:6px 8px 6px 24px" onclick="selFolder('acsp')"><i class="ti ti-folder" style="font-size:16px"></i>acs-platform <span style="color:#9A9AA4;font-weight:400;font-size:11px">project</span></div>
-      <div class="tnode" style="padding:6px 8px 6px 42px" onclick="selFolder('acs')"><i class="ti ti-git-fork" style="font-size:16px"></i>acs <span style="color:#9A9AA4;font-weight:400;font-size:11px">repo</span></div>
-      <div class="tnode" style="padding:6px 8px 6px 60px" onclick="selFolder('acs-main')"><i class="ti ti-git-branch" style="font-size:15px"></i>main</div>
-      <div class="tnode" style="padding:6px 8px 6px 60px" onclick="selFolder('acs-stg')"><i class="ti ti-git-branch" style="font-size:15px"></i>staging</div>
-      <div class="tnode" style="padding:6px 8px 6px 42px" onclick="selFolder('fe')"><i class="ti ti-git-fork" style="font-size:16px"></i>frontend-app <span style="color:#9A9AA4;font-weight:400;font-size:11px">repo</span></div>
-      <div class="tnode" style="padding:6px 8px 6px 60px" onclick="selFolder('fe-main')"><i class="ti ti-git-branch" style="font-size:15px"></i>main</div>
+    <div style="font-size:12px;color:var(--sec);margin-bottom:6px">Folder</div>
+    <!-- Top-level folders ONLY: workspace and the project inside it. Repo/branch levels are out of scope. -->
+    <div id="folder-list" style="border:1px solid var(--border);border-radius:var(--r-sm);padding:6px;margin-bottom:16px">
+      <button type="button" class="tnode" data-folder="ws" style="padding:6px 8px"><i class="ti ti-building" style="font-size:16px" aria-hidden="true"></i>blitzy-ai <span style="color:var(--ter);font-weight:400;font-size:11px">workspace</span></button>
+      <button type="button" class="tnode" data-folder="acsp" style="padding:6px 8px 6px 24px"><i class="ti ti-folder" style="font-size:16px" aria-hidden="true"></i>acs-platform <span style="color:var(--ter);font-weight:400;font-size:11px">project</span></button>
     </div>
 
-    <div style="display:flex;align-items:center;margin-bottom:6px"><span style="font-size:12px;color:#6E6E78;flex:1">Share with</span><span id="sel-count" style="font-size:11px;color:#9A9AA4"></span></div>
+    <div style="display:flex;align-items:center;margin-bottom:6px"><span style="font-size:12px;color:var(--sec);flex:1">Share with</span><span id="sel-count" style="font-size:11px;color:var(--ter)"></span></div>
     <div id="team-chips" style="margin-bottom:8px"></div>
-    <input class="srch" id="team-search" placeholder="Search teams…" oninput="renderTeamList(this.value)">
-    <div id="teamlist" style="border:1px solid #E6E6EC;border-radius:9px;margin-top:8px;max-height:168px;overflow:auto;padding:4px;margin-bottom:16px"></div>
+    <input class="srch" id="team-search" placeholder="Search teams…" aria-label="Search teams">
+    <div id="teamlist" style="border:1px solid var(--border);border-radius:var(--r-sm);margin-top:8px;max-height:168px;overflow:auto;padding:4px;margin-bottom:8px"></div>
+    <!-- Inline redundant-grant notice (read-time inheritance block). Rendered in the error-text token; never a browser alert. -->
+    <div id="block-msg" style="display:none;background:var(--err-bg);color:var(--err-tx);border-radius:var(--r-sm);padding:8px 10px;font-size:12px;margin-bottom:14px"></div>
 
-    <div style="font-size:12px;color:#6E6E78;margin-bottom:6px">Access level</div>
-    <div style="display:flex;gap:6px;margin-bottom:14px">
-      <div class="tp" id="lvl-view" onclick="setLevel('view')">Can view</div>
-      <div class="tp on" id="lvl-edit" onclick="setLevel('edit')">Can edit</div>
-    </div>
-
-    <label id="sub-wrap" style="display:flex;align-items:flex-start;gap:9px;background:#F8F8FB;border:1px solid #E6E6EC;border-radius:10px;padding:11px 12px;cursor:pointer" onclick="toggleSub(event)">
-      <i id="sub-icon" class="ti ti-square-check-filled" style="font-size:18px;color:#5B4FE0;margin-top:1px"></i>
-      <span><span style="font-size:13px;font-weight:600;color:#1F1F29">Include everything inside this folder</span><br><span id="sub-help" style="font-size:11px;color:#9A9AA4">Pick a folder to see what this includes</span></span>
-    </label>
-
-    <div style="display:flex;align-items:center;gap:8px;margin-top:18px">
-      <button class="obtn" onclick="closePicker()">Cancel</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+      <button type="button" class="obtn" id="btn-cancel-picker">Cancel</button>
       <span style="flex:1"></span>
-      <button class="sbtn" id="btn-another" onclick="addGrant(true)" disabled>Save &amp; add another</button>
-      <button class="pbtn" id="btn-confirm" onclick="addGrant(false)" disabled>Add</button>
+      <button type="button" class="sbtn" id="btn-another" disabled>Save &amp; add another</button>
+      <button type="button" class="pbtn" id="btn-confirm" disabled>Add</button>
     </div>
   </div>
-</div>
+</main>
 <script>
-const FM={
- ws:{label:'blitzy-ai',type:'workspace',path:'blitzy-ai · entire workspace',icon:'ti-building',inc:'every project, repo and branch inside'},
- acsp:{label:'acs-platform',type:'project',path:'acs-platform · project',icon:'ti-folder',inc:'every repo and branch inside'},
- acs:{label:'acs',type:'repo',path:'acs · repo',icon:'ti-git-fork',inc:'every branch in acs'},
- 'acs-main':{label:'main',type:'branch',path:'acs / main · branch',icon:'ti-git-branch'},
- 'acs-stg':{label:'staging',type:'branch',path:'acs / staging · branch',icon:'ti-git-branch'},
- fe:{label:'frontend-app',type:'repo',path:'frontend-app · repo',icon:'ti-git-fork',inc:'every branch in frontend-app'},
- 'fe-main':{label:'main',type:'branch',path:'frontend-app / main · branch',icon:'ti-git-branch'}
+/* ============================================================================
+   Folder-level team sharing — folder-first inheritance model.
+   Push-only (admins grant access; no requests/approvals). Top-level folders only.
+   Inheritance ALWAYS flows down with no carve-outs and is computed at READ time:
+   a team has access to a folder if it has a DIRECT grant on that folder OR on any
+   ancestor. Inherited rows are never stored. There is no view/edit access level.
+   ============================================================================ */
+
+/* Team registry: initials, display name, member count. Avatars are token-colored. */
+var RAW=[['BE','Back-end',4],['FE','Front-end',3],['DS','Design',4],['QA','QA',5],['PF','Platform',6],['DA','Data',3],['SE','Security',2],['MB','Mobile',4],['DO','DevOps',3],['SR','SRE',2],['GR','Growth',5],['PY','Payments',4]];
+var TM={};RAW.forEach(function(r){TM[r[0]]={init:r[0],name:r[1],count:r[2]};});
+
+/* Folder model — top-level folders ONLY (workspace > project). `parent` drives inheritance. */
+var FM={
+ ws:{label:'blitzy-ai',type:'workspace',path:'blitzy-ai \u00b7 entire workspace',icon:'ti-building',parent:null},
+ acsp:{label:'acs-platform',type:'project',path:'acs-platform \u00b7 project',icon:'ti-folder',parent:'ws'}
 };
-const ORDER=['ws','acsp','acs','acs-main','acs-stg','fe','fe-main'];
-const PAL=[['#EAF3DE','#3B6D11'],['#E6F1FB','#185FA5'],['#FAEEDA','#854F0B'],['#FBEAF0','#993556'],['#EEEDFE','#3C3489'],['#E1F5EE','#0F6E56'],['#FAECE7','#993C1D'],['#F1EFE8','#444441']];
-const RAW=[['BE','Back-end',4],['FE','Front-end',3],['DS','Design',4],['QA','QA',5],['PF','Platform',6],['DA','Data',3],['SE','Security',2],['MB','Mobile',4],['DO','DevOps',3],['SR','SRE',2],['GR','Growth',5],['PY','Payments',4]];
-const TM={};RAW.forEach((r,i)=>{TM[r[0]]={init:r[0],name:r[1],count:r[2],bg:PAL[i%PAL.length][0],fg:PAL[i%PAL.length][1]};});
+var ORDER=['ws','acsp'];
 
-let S={mode:'team',grants:[
- {team:'DS',folder:'acs-main',level:'edit',sub:false},
- {team:'QA',folder:'acs-main',level:'view',sub:false}
+/* DIRECT grants only — {team, folder}. Inheritance is derived, never persisted. */
+var S={grants:[
+ {team:'PF',folder:'ws'},   /* Platform granted on the workspace -> inherits down to acs-platform */
+ {team:'BE',folder:'acsp'}  /* Back-end granted directly on the project */
 ]};
-let D={folder:null,teams:new Set(),level:'edit',sub:true};
+/* Picker draft: chosen folder + selected teams. No access level, no carve-out toggle. */
+var D={folder:null,teams:new Set()};
+var blockMsg='';   /* inline redundant-grant message (rendered with --err-tx) */
 
-function avatar(t,sz){const m=TM[t];return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+m.bg+';color:'+m.fg+';font-size:'+(sz<24?9:11)+'px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+m.init+'</div>';}
+/* HTML-escape every untrusted leaf value at the render boundary (XSS-safe). Mirrors the primary
+   file's esc(). Team/folder/parent names, paths, initials and every attribute value pass through
+   esc() before reaching innerHTML; values rendered via textContent (e.g. the inline block message)
+   are already safe and are intentionally NOT double-escaped. */
+var ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ESC_MAP[c];});}
+function avatar(t,sz){var m=TM[t];return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:var(--brand);color:#fff;font-size:'+(sz<24?9:11)+'px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+esc(m.init)+'</div>';}
 
+/* ===== Read-time inheritance helpers ===== */
+function parentOf(fid){return FM[fid]?FM[fid].parent:null;}
+function ancestors(fid){var a=[],p=parentOf(fid);while(p){a.push(p);p=parentOf(p);}return a;}
+function directTeams(fid){return S.grants.filter(function(g){return g.folder===fid;}).map(function(g){return g.team;});}
+function inheritedTeams(fid){/* -> [{team,source}] from any ancestor, de-duplicated */
+ var out=[],seen={};
+ ancestors(fid).forEach(function(anc){
+  S.grants.filter(function(g){return g.folder===anc;}).forEach(function(g){
+   if(!seen[g.team]){seen[g.team]=1;out.push({team:g.team,source:anc});}
+  });
+ });
+ return out;
+}
+function inheritedSource(team,fid){var hit=inheritedTeams(fid).filter(function(x){return x.team===team;})[0];return hit?hit.source:null;}
+function hasAccess(team,fid){return directTeams(fid).indexOf(team)>=0||!!inheritedSource(team,fid);}
+
+/* ===== List view: per-folder access (direct grants + inherited grants) ===== */
 function renderGrants(){
- const c=document.getElementById('grants');
- if(!S.grants.length){c.innerHTML='<div style="font-size:12px;color:#9A9AA4;padding:4px 2px 10px">No folders shared yet. Add one below.</div>';return;}
- const order=[];S.grants.forEach(g=>{if(!order.includes(g.folder))order.push(g.folder);});
- let h='';
- order.forEach(fid=>{
-  const f=FM[fid];const gr=S.grants.find(g=>g.folder===fid);
-  h+='<div style="background:#fff;border:1px solid #E6E6EC;border-radius:10px;padding:8px 10px;margin-bottom:7px">';
-  h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#6E6E78;margin-bottom:6px"><i class="ti '+f.icon+'" style="font-size:14px"></i><span style="color:#1F1F29;font-weight:600">'+f.path+'</span>'+(f.type!=='branch'?'<span style="margin-left:auto;font-size:11px;color:'+(gr.sub?'#4A3FC0':'#B4B4BE')+'">'+(gr.sub?'incl. everything inside':'this folder only')+'</span>':'')+'</div>';
-  S.grants.filter(g=>g.folder===fid).forEach(g=>{
-   h+='<div style="display:flex;align-items:center;gap:9px;padding:5px 2px">'+avatar(g.team,24)+'<span style="flex:1;font-size:13px;color:#1F1F29">'+TM[g.team].name+'</span>';
-   h+='<span class="lvl" onclick="cycleLevel(\''+g.team+'\',\''+fid+'\')">'+(g.level==='edit'?'Can edit':'Can view')+' <i class="ti ti-chevron-down" style="font-size:13px;color:#9A9AA4"></i></span>';
-   h+='<i class="ti ti-x" onclick="removeGrant(\''+g.team+'\',\''+fid+'\')" style="font-size:15px;color:#B4B4BE;cursor:pointer"></i></div>';
+ var c=document.getElementById('grants');
+ var shown=ORDER.filter(function(fid){return directTeams(fid).length||inheritedTeams(fid).length;});
+ if(!shown.length){c.innerHTML='<div style="font-size:12px;color:var(--ter);padding:4px 2px 10px">No folders shared yet. Add one below.</div>';return;}
+ var h='';
+ shown.forEach(function(fid){
+  var f=FM[fid];
+  var direct=directTeams(fid);
+  var inh=inheritedTeams(fid).filter(function(x){return direct.indexOf(x.team)<0;}); /* don't double-show a team that is also direct */
+  h+='<div style="background:#fff;border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:7px">';
+  h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sec);margin-bottom:6px"><i class="ti '+f.icon+'" style="font-size:14px" aria-hidden="true"></i><span style="color:var(--ink);font-weight:600">'+esc(f.path)+'</span></div>';
+  /* DIRECT grants — removable */
+  direct.forEach(function(t){
+   h+='<div style="display:flex;align-items:center;gap:9px;padding:5px 2px">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[t].name)+'</span>'+
+      '<button type="button" class="iconbtn" data-act="remove" data-team="'+esc(t)+'" data-folder="'+esc(fid)+'" title="Remove" aria-label="Remove '+esc(TM[t].name)+' from '+esc(f.label)+'" style="font-size:15px;color:var(--ter)"><i class="ti ti-x" aria-hidden="true"></i></button></div>';
+  });
+  /* INHERITED grants — read-only, locked, with provenance */
+  inh.forEach(function(x){
+   h+='<div style="display:flex;align-items:center;gap:9px;padding:5px 2px">'+avatar(x.team,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[x.team].name)+'</span>'+
+      '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ter)" title="Inherited from '+esc(FM[x.source].label)+'"><i class="ti ti-lock" style="font-size:13px" aria-hidden="true"></i>from '+esc(FM[x.source].label)+'</span></div>';
   });
   h+='</div>';
  });
  c.innerHTML=h;
 }
-function cycleLevel(t,f){const g=S.grants.find(x=>x.team===t&&x.folder===f);g.level=g.level==='edit'?'view':'edit';renderGrants();}
-function removeGrant(t,f){S.grants=S.grants.filter(x=>!(x.team===t&&x.folder===f));renderGrants();}
+function removeGrant(t,f){S.grants=S.grants.filter(function(x){return !(x.team===t&&x.folder===f);});renderGrants();}
 
-function setMode(m){
- S.mode=m;document.getElementById('summary').style.display='none';
- document.getElementById('radio-me').style.border=m==='personal'?'5px solid #5B4FE0':'1.5px solid #C9C9D2';
- document.getElementById('opt-me').style.borderColor=m==='personal'?'#C9C2F5':'#E6E6EC';
- document.getElementById('opt-me').style.background=m==='personal'?'#F2F0FE':'#fff';
- document.getElementById('radio-team').style.display=m==='team'?'inline':'none';
- document.getElementById('opt-team').style.background=m==='team'?'#F2F0FE':'#fff';
- document.getElementById('opt-team').style.borderColor=m==='team'?'#C9C2F5':'#E6E6EC';
- document.getElementById('team-body').style.display=m==='team'?'block':'none';
- const rv=document.getElementById('revoke');
- if(m==='personal'&&S.grants.length){const counts={};S.grants.forEach(g=>{counts[g.team]=(counts[g.team]||0)+1;});rv.innerHTML='Switching to personal will revoke access for: '+Object.keys(counts).map(t=>TM[t].name).join(' &bull; ');rv.style.display='block';}else rv.style.display='none';
-}
-
-function openPicker(){D={folder:null,teams:new Set(),level:'edit',sub:true};document.getElementById('added-toast').style.display='none';resetPickerUI();document.getElementById('view-list').style.display='none';document.getElementById('view-picker').style.display='block';}
+/* ===== Picker view ===== */
+function openPicker(){D={folder:null,teams:new Set()};blockMsg='';document.getElementById('added-toast').style.display='none';resetPickerUI();document.getElementById('view-list').style.display='none';document.getElementById('view-picker').style.display='block';}
 function closePicker(){document.getElementById('view-picker').style.display='none';document.getElementById('view-list').style.display='block';}
-function resetPickerUI(){document.getElementById('team-search').value='';selFolder(null);setLevel('edit');document.getElementById('sub-icon').className='ti ti-square-check-filled';document.getElementById('sub-icon').style.color='#5B4FE0';renderChips();renderTeamList('');}
+function resetPickerUI(){document.getElementById('team-search').value='';selFolder(null);}
 
 function selFolder(fid){
  D.folder=fid;
- document.querySelectorAll('#view-picker .tnode').forEach(n=>n.classList.remove('sel'));
- if(fid){const nodes=[...document.querySelectorAll('#view-picker .tnode')];const idx=ORDER.indexOf(fid);if(idx>=0)nodes[idx].classList.add('sel');}
- const f=fid?FM[fid]:null;const wrap=document.getElementById('sub-wrap');
- if(f&&f.type==='branch'){wrap.style.display='none';}else{wrap.style.display='flex';document.getElementById('sub-help').textContent=f?('Teams will also get '+f.inc):'Pick a folder to see what this includes';}
+ var nodes=Array.prototype.slice.call(document.querySelectorAll('#view-picker .tnode'));
+ nodes.forEach(function(n){n.classList.remove('sel');});
+ if(fid){var idx=ORDER.indexOf(fid);if(idx>=0&&nodes[idx])nodes[idx].classList.add('sel');}
+ reconcileSelection();            /* drop any pre-selected team that is now redundant for this folder */
+ renderChips();
+ renderTeamList(document.getElementById('team-search').value);
+ renderBlock();
  updateConfirm();
 }
+
+/* If a pre-selected team already has access (direct or inherited) to the newly chosen folder it is
+   redundant: silently drop it from the draft and explain inline. */
+function reconcileSelection(){
+ blockMsg='';
+ if(!D.folder)return;
+ var blocked=[];
+ Array.from(D.teams).forEach(function(t){
+  if(hasAccess(t,D.folder)){
+   D.teams.delete(t);
+   var src=inheritedSource(t,D.folder);
+   blocked.push(TM[t].name+(src?(' already inherits access from '+FM[src].label):' already has direct access'));
+  }
+ });
+ if(blocked.length)blockMsg=blocked.join('. ')+'.';
+}
+
 function renderChips(){
- const c=document.getElementById('team-chips');
+ var c=document.getElementById('team-chips');
  document.getElementById('sel-count').textContent=D.teams.size?D.teams.size+' selected':'';
- if(!D.teams.size){c.innerHTML='<span style="font-size:12px;color:#9A9AA4">No teams selected yet</span>';return;}
- c.innerHTML=[...D.teams].map(t=>'<span style="display:inline-flex;align-items:center;gap:5px;background:#F1EFE8;border-radius:6px;padding:3px 7px;font-size:12px;color:#444441;margin:0 5px 5px 0">'+avatar(t,16)+TM[t].name+' <i class="ti ti-x" onclick="toggleTeam(\''+t+'\')" style="font-size:12px;color:#9A9AA4;cursor:pointer"></i></span>').join('');
+ if(!D.teams.size){c.innerHTML='<span style="font-size:12px;color:var(--ter)">No teams selected yet</span>';return;}
+ c.innerHTML=Array.from(D.teams).map(function(t){return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--neutral50);border-radius:var(--r-sm);padding:3px 7px;font-size:12px;color:var(--sec);margin:0 5px 5px 0">'+avatar(t,16)+esc(TM[t].name)+' <button type="button" class="iconbtn" data-act="toggle" data-team="'+esc(t)+'" title="Deselect" aria-label="Deselect '+esc(TM[t].name)+'" style="font-size:12px;color:var(--ter)"><i class="ti ti-x" aria-hidden="true"></i></button></span>';}).join('');
 }
-function renderTeamList(q){
- q=(q||'').toLowerCase();
- const list=document.getElementById('teamlist');
- const items=Object.keys(TM).filter(t=>TM[t].name.toLowerCase().includes(q));
- if(!items.length){list.innerHTML='<div style="font-size:12px;color:#9A9AA4;padding:10px">No teams match “'+q+'”</div>';return;}
- list.innerHTML=items.map(t=>{const on=D.teams.has(t);return '<div class="tlrow" onclick="toggleTeam(\''+t+'\')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;'+(on?'background:#F2F0FE;':'')+'">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:#1F1F29">'+TM[t].name+'</span><span style="font-size:11px;color:#9A9AA4">'+TM[t].count+' members</span><i class="ti '+(on?'ti-checkbox':'ti-square')+'" style="font-size:17px;color:'+(on?'#5B4FE0':'#C9C9D2')+'"></i></div>';}).join('');
+
+function renderTeamList(qstr){
+ var q=(qstr||'').toLowerCase();
+ var list=document.getElementById('teamlist');
+ if(!D.folder){list.innerHTML='<div style="font-size:12px;color:var(--ter);padding:10px">Pick a folder first.</div>';return;}
+ var items=Object.keys(TM).filter(function(t){return TM[t].name.toLowerCase().indexOf(q)>=0;});
+ var rows='';
+ items.forEach(function(t){
+  if(directTeams(D.folder).indexOf(t)>=0)return;            /* already a direct grant on this folder -> exclude */
+  var src=inheritedSource(t,D.folder);
+  if(src){                                                  /* inherits from an ancestor -> locked, read-only; click explains why */
+   rows+='<button type="button" class="tlrow locked" aria-disabled="true" data-act="blocked" data-team="'+esc(t)+'" title="Inherits from '+esc(FM[src].label)+'" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r-sm);opacity:.65">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[t].name)+'</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ter)"><i class="ti ti-lock" style="font-size:14px" aria-hidden="true"></i>from '+esc(FM[src].label)+'</span></button>';
+   return;
+  }
+  var on=D.teams.has(t);
+  rows+='<button type="button" class="tlrow" data-act="toggle" data-team="'+esc(t)+'" aria-pressed="'+(on?'true':'false')+'" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r-sm);cursor:pointer;'+(on?'background:var(--brand-tint);':'')+'">'+avatar(t,24)+'<span style="flex:1;font-size:13px;color:var(--ink)">'+esc(TM[t].name)+'</span><span style="font-size:11px;color:var(--ter)">'+esc(TM[t].count)+' members</span><i class="ti '+(on?'ti-checkbox':'ti-square')+'" style="font-size:17px;color:'+(on?'var(--brand)':'var(--ter)')+'" aria-hidden="true"></i></button>';
+ });
+ if(!rows)rows='<div style="font-size:12px;color:var(--ter);padding:10px">No teams available to add.</div>';
+ list.innerHTML=rows;
 }
-function toggleTeam(t){if(D.teams.has(t))D.teams.delete(t);else D.teams.add(t);renderChips();renderTeamList(document.getElementById('team-search').value);updateConfirm();}
-function setLevel(l){D.level=l;document.getElementById('lvl-view').classList.toggle('on',l==='view');document.getElementById('lvl-edit').classList.toggle('on',l==='edit');}
-function toggleSub(e){e.preventDefault();D.sub=!D.sub;document.getElementById('sub-icon').className='ti '+(D.sub?'ti-square-check-filled':'ti-square');document.getElementById('sub-icon').style.color=D.sub?'#5B4FE0':'#B4B4BE';}
-function updateConfirm(){const ok=!!(D.folder&&D.teams.size);document.getElementById('btn-confirm').disabled=!ok;document.getElementById('btn-another').disabled=!ok;}
+
+/* C3 — attempting to add a team that already inherits access is blocked inline (no duplicate grant). */
+function blockInherited(t){
+ var src=inheritedSource(t,D.folder);
+ blockMsg=TM[t].name+' already inherits access from '+(src?FM[src].label:'a parent folder')+'.';
+ renderBlock();
+}
+function renderBlock(){var e=document.getElementById('block-msg');if(!e)return;if(blockMsg){e.textContent=blockMsg;e.style.display='block';}else{e.style.display='none';}}
+
+function toggleTeam(t){
+ if(!D.folder)return;
+ if(D.teams.has(t)){D.teams.delete(t);blockMsg='';}
+ else{if(hasAccess(t,D.folder)){blockInherited(t);return;}D.teams.add(t);blockMsg='';}
+ renderBlock();renderChips();renderTeamList(document.getElementById('team-search').value);updateConfirm();var se=document.getElementById('team-search');if(se)se.focus();
+}
+function updateConfirm(){var ok=!!(D.folder&&D.teams.size);document.getElementById('btn-confirm').disabled=!ok;document.getElementById('btn-another').disabled=!ok;}
 
 function addGrant(another){
  if(!D.folder||!D.teams.size)return;
- const isBranch=FM[D.folder].type==='branch';const fid=D.folder;const n=D.teams.size;
- D.teams.forEach(t=>{const ex=S.grants.find(g=>g.team===t&&g.folder===fid);if(ex){ex.level=D.level;ex.sub=isBranch?false:D.sub;}else S.grants.push({team:t,folder:fid,level:D.level,sub:isBranch?false:D.sub});});
+ var fid=D.folder,added=0;
+ Array.from(D.teams).forEach(function(t){
+  if(hasAccess(t,fid))return;                                /* defensive: never create a redundant/duplicate grant */
+  if(!S.grants.filter(function(g){return g.team===t&&g.folder===fid;}).length){S.grants.push({team:t,folder:fid});added++;}
+ });
  renderGrants();
  if(another){
-  D={folder:null,teams:new Set(),level:'edit',sub:true};
+  D={folder:null,teams:new Set()};blockMsg='';
   resetPickerUI();
-  const tt=document.getElementById('added-toast');tt.innerHTML='<i class="ti ti-check" style="vertical-align:-2px"></i> Added '+FM[fid].label+' for '+n+' team'+(n>1?'s':'')+'. Pick the next folder.';tt.style.display='block';
+  var tt=document.getElementById('added-toast');tt.innerHTML='<i class="ti ti-check" style="vertical-align:-2px" aria-hidden="true"></i> Added access on '+esc(FM[fid].label)+' for '+added+' team'+(added===1?'':'s')+'. Pick the next folder.';tt.style.display='block';
   document.getElementById('view-picker').scrollIntoView({behavior:'smooth',block:'start'});
  }else{closePicker();}
 }
+
 function done(){
- const s=document.getElementById('summary');
- if(S.mode==='personal'){s.style.background='#FCEBEB';s.style.color='#A32D2D';s.textContent='Saved as personal. All team grants would be revoked.';s.style.display='block';return;}
- const lines=S.grants.map(g=>TM[g.team].name+' \u2192 '+FM[g.folder].path+' \u2192 can '+g.level+(g.sub?' (incl. subfolders)':''));
- s.style.background='#EAF3DE';s.style.color='#27500A';s.innerHTML='Saved '+S.grants.length+' grants:<br>'+lines.join('<br>');s.style.display='block';
+ var s=document.getElementById('summary');
+ if(!S.grants.length){s.style.background='var(--neutral50)';s.style.color='var(--sec)';s.textContent='No folder access granted yet.';s.style.display='block';return;}
+ var lines=S.grants.map(function(g){return esc(TM[g.team].name)+' \u2192 '+esc(FM[g.folder].path);});
+ s.style.background='var(--succ-bg)';s.style.color='var(--succ-tx)';s.innerHTML='Saved '+S.grants.length+' folder grant'+(S.grants.length===1?'':'s')+' (everything inside inherits automatically):<br>'+lines.join('<br>');s.style.display='block';
 }
 function resetAll(){location.reload();}
-document.getElementById('btn-add').onclick=openPicker;
+
+/* ===== Event wiring — no inline handler attributes; delegated where content is dynamic. ===== */
+document.getElementById('btn-add').addEventListener('click',openPicker);
+document.getElementById('btn-cancel-list').addEventListener('click',resetAll);
+document.getElementById('btn-done').addEventListener('click',done);
+document.getElementById('btn-back').addEventListener('click',closePicker);
+document.getElementById('btn-cancel-picker').addEventListener('click',closePicker);
+document.getElementById('btn-another').addEventListener('click',function(){addGrant(true);});
+document.getElementById('btn-confirm').addEventListener('click',function(){addGrant(false);});
+document.getElementById('team-search').addEventListener('input',function(){renderTeamList(this.value);});
+/* Static top-level folder buttons (workspace + project). */
+Array.prototype.slice.call(document.querySelectorAll('#folder-list .tnode')).forEach(function(b){
+ b.addEventListener('click',function(){selFolder(b.getAttribute('data-folder'));});
+});
+/* Delegated handlers for dynamically rendered rows/icons. Native <button> => Enter/Space work. */
+document.getElementById('grants').addEventListener('click',function(e){var b=e.target.closest('[data-act="remove"]');if(b)removeGrant(b.getAttribute('data-team'),b.getAttribute('data-folder'));});
+document.getElementById('team-chips').addEventListener('click',function(e){var b=e.target.closest('[data-act="toggle"]');if(b)toggleTeam(b.getAttribute('data-team'));});
+document.getElementById('teamlist').addEventListener('click',function(e){var b=e.target.closest('[data-act]');if(!b)return;var a=b.getAttribute('data-act');if(a==='toggle')toggleTeam(b.getAttribute('data-team'));else if(a==='blocked')blockInherited(b.getAttribute('data-team'));});
 renderGrants();
 </script>
 </body>
